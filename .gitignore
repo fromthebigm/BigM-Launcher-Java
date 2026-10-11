@@ -1,0 +1,13 @@
+# Build + release outputs
+/target/
+/build/
+/dist/
+# Runtime state and user data
+/portable-data/
+/Support/
+# Bundled runtime (downloaded/placed at build time)
+/jdk
+# Native source compiled into the shipped dylib
+*.dylib
+# Editor/system junk
+.DS_Store

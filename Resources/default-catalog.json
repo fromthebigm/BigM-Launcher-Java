@@ -1,0 +1,373 @@
+{
+  "schemaVersion": 1,
+  "apps": [
+    {
+      "id": "moonlight",
+      "displayName": "Moonlight",
+      "category": "streaming",
+      "symbol": "moon.stars.fill",
+      "tintHex": "#6C8CFF",
+      "summary": "Low-latency PC streaming through the portable Pelican wrapper and its isolated profile.",
+      "defaultProfileID": "portable",
+      "profiles": [
+        {
+          "id": "portable",
+          "name": "Portable Pelican",
+          "backend": "python",
+          "target": "${HOME}/Downloads/ALL/Moonlight/moonlight_launch.py",
+          "candidates": [
+            "${HOME}/Downloads/ALL/Moonlight-portable-2026.08.17-macos-universal/moonlight_launch.py",
+            "${HOME}/Downloads/Moonlight-portable-2026.08.17-macos-universal/moonlight_launch.py"
+          ],
+          "args": [],
+          "env": {},
+          "cwd": "{targetDir}"
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/moonlight-streaming",
+        "assetPattern": "Moonlight-portable-*.zip",
+        "marker": "moonlight_launch.py",
+        "preserve": [
+          "profile",
+          "Support",
+          "portable-data",
+          "portable",
+          "data"
+        ]
+      }
+    },
+    {
+      "id": "chiaki",
+      "displayName": "Chiaki",
+      "category": "remote-play",
+      "symbol": "playstation.logo",
+      "tintHex": "#4C79FF",
+      "summary": "PlayStation Remote Play through the portable Dove wrapper with folder-local state.",
+      "defaultProfileID": "portable",
+      "profiles": [
+        {
+          "id": "portable",
+          "name": "Portable Dove",
+          "backend": "python",
+          "target": "${HOME}/Downloads/ALL/Chiaki/run_dove.py",
+          "candidates": [
+            "${HOME}/Downloads/ALL/Chiaki/run_dove.py",
+            "${HOME}/Downloads/ALL/Chiaki/run_dove.sh",
+            "${HOME}/Downloads/ALL/Chiaki-portable-2026.08.17-macos-arm64/run_dove.py",
+            "${HOME}/Downloads/ALL/Chiaki-portable-2026.08.17-macos-arm64/run_dove.sh",
+            "${HOME}/Downloads/Chiaki-portable-2026.08.17-macos-arm64/run_dove.py",
+            "${HOME}/Downloads/Chiaki-portable-2026.08.17-macos-arm64/run_dove.sh"
+          ],
+          "args": [],
+          "env": {
+            "DOVE_BIN": "{targetDir}/Weather.app/Contents/MacOS/chiaki"
+          },
+          "cwd": "{targetDir}"
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/Chiaki",
+        "assetPattern": "Chiaki-portable-*.zip",
+        "marker": "run_dove.py",
+        "preserve": [
+          "profile",
+          "Support",
+          "portable-data",
+          "portable",
+          "data"
+        ]
+      }
+    },
+    {
+      "id": "rigel",
+      "displayName": "Rigel",
+      "category": "browser",
+      "symbol": "globe.americas.fill",
+      "tintHex": "#35B9A6",
+      "summary": "Portable WebKit browser launched through its guarded Java wrapper with current data and capture settings.",
+      "defaultProfileID": "portable",
+      "profiles": [
+        {
+          "id": "portable",
+          "name": "Portable Rigel",
+          "backend": "script",
+          "target": "${HOME}/Downloads/ALL/rig/run-rigel.sh",
+          "candidates": [
+            "${HOME}/Downloads/ALL/Rigel-Releases/canonical-2026.08.20-stability-v1/Rigel/run-rigel.sh",
+            "${HOME}/Downloads/Rigel/run-rigel.sh"
+          ],
+          "args": [],
+          "env": {}
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/rigel",
+        "assetPattern": "Rigel-portable-*.zip",
+        "marker": "run-rigel.sh",
+        "preserve": [
+          "portable-data",
+          "Support",
+          "profile",
+          "portable",
+          "data"
+        ]
+      }
+    },
+    {
+      "id": "prism",
+      "displayName": "Prism Launcher",
+      "category": "minecraft",
+      "symbol": "cube.fill",
+      "tintHex": "#7CC65A",
+      "summary": "Portable Minecraft launcher for authenticated online play through the selected fail-closed proxy route.",
+      "defaultProfileID": "portable-online",
+      "profiles": [
+        {
+          "id": "portable-online",
+          "name": "Portable Online",
+          "backend": "python",
+          "target": "${HOME}/Downloads/ALL/Prism-Launcher/launch_prism.py",
+          "candidates": [
+            "${HOME}/Downloads/Prism-Launcher-Portable-11.0.3-macos-arm64/launch_prism.py",
+            "${HOME}/Downloads/ALL/Prism-Releases/canonical-2026.08.12-proven-python/final-20260812-201635/Prism-Launcher-Portable-11.0.3-macos-arm64/launch_prism.py"
+          ],
+          "args": [],
+          "env": {},
+          "cwd": "{targetDir}"
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/Prism-Launcher",
+        "assetPattern": "Prism-Launcher-Portable-*.zip",
+        "marker": "launch_prism.py",
+        "preserve": [
+          "profile",
+          "Support",
+          "portable-data",
+          "portable",
+          "data",
+          "PrismLauncher"
+        ]
+      }
+    },
+    {
+      "id": "ryujinx",
+      "displayName": "Ryujinx / Ryubing",
+      "category": "emulator",
+      "symbol": "switch.2",
+      "tintHex": "#E65B62",
+      "summary": "Nintendo Switch emulation through the FromBigM embedded portable Python wrapper.",
+      "defaultProfileID": "newer",
+      "profiles": [
+        {
+          "id": "newer",
+          "name": "Newer Build",
+          "backend": "python",
+          "target": "${HOME}/Downloads/Ryubing/run_newer.py",
+          "candidates": [
+            "${HOME}/Downloads/Ryubing/run_newer.py",
+            "${HOME}/Downloads/ALL/ryubin/run_newer.py",
+            "${HOME}/Downloads/ryubin/run_newer.py",
+            "${HOME}/Downloads/ALL/ryujinx/run_newer.py",
+            "${HOME}/Downloads/ryujinx/run_newer.py",
+            "${HOME}/Downloads/Ryubing/run_version.py",
+            "${HOME}/Downloads/ALL/ryubin/run_version.py",
+            "${HOME}/Downloads/ryubin/run_version.py"
+          ],
+          "args": [
+            "newer"
+          ],
+          "env": {},
+          "cwd": "{targetDir}"
+        },
+        {
+          "id": "older",
+          "name": "Older Build (1.1.1397)",
+          "backend": "python",
+          "target": "${HOME}/Downloads/Ryubing/run_1_1_1397.py",
+          "candidates": [
+            "${HOME}/Downloads/Ryubing/run_1_1_1397.py",
+            "${HOME}/Downloads/ALL/ryubin/run_1_1_1397.py",
+            "${HOME}/Downloads/ryubin/run_1_1_1397.py",
+            "${HOME}/Downloads/ALL/ryujinx/run_1_1_1397.py",
+            "${HOME}/Downloads/ryujinx/run_1_1_1397.py",
+            "${HOME}/Downloads/Ryubing/run_version.py",
+            "${HOME}/Downloads/ALL/ryubin/run_version.py",
+            "${HOME}/Downloads/ryubin/run_version.py"
+          ],
+          "args": [
+            "1.1.1397"
+          ],
+          "env": {},
+          "cwd": "{targetDir}"
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/Ryujinx",
+        "assetPattern": "Ryujinx-portable-*.zip",
+        "marker": "run_newer.py",
+        "preserve": [
+          "profile",
+          "Support",
+          "portable-data",
+          "portable-home",
+          "userdata",
+          "portable",
+          "data"
+        ]
+      }
+    },
+    {
+      "id": "dolphin",
+      "displayName": "Dolphin",
+      "category": "emulator",
+      "symbol": "water.waves",
+      "tintHex": "#607DFF",
+      "summary": "GameCube and Wii emulation through the portable Fish wrapper and folder-local profile.",
+      "defaultProfileID": "portable",
+      "profiles": [
+        {
+          "id": "portable",
+          "name": "Portable Fish",
+          "backend": "python",
+          "target": "${HOME}/Downloads/ALL/Dolphin/run_fish.py",
+          "candidates": [
+            "${HOME}/Downloads/Dolphin-portable-2026.08.08-macos-arm64/run_fish.py",
+            "${HOME}/Downloads/ALL/Dolphin-portable-2026.08.08-macos-arm64/run_fish.py"
+          ],
+          "args": [],
+          "env": {
+            "DOLPHIN_BIN": "{targetDir}/Weather.app/Contents/MacOS/Dolphin",
+            "DOLPHIN_EMU_USERPATH": "{targetDir}/portable/"
+          },
+          "cwd": "{targetDir}"
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/Dolphin",
+        "assetPattern": "Dolphin-portable-*.zip",
+        "marker": "run_fish.py",
+        "preserve": [
+          "profile",
+          "Support",
+          "portable-data",
+          "portable",
+          "data"
+        ]
+      }
+    },
+    {
+      "id": "azahar",
+      "displayName": "Azahar / Citra",
+      "category": "emulator",
+      "symbol": "circle.grid.cross.fill",
+      "tintHex": "#E38B43",
+      "summary": "Nintendo 3DS emulation through the portable Seagull wrapper with isolated NAND and SD data.",
+      "defaultProfileID": "portable",
+      "profiles": [
+        {
+          "id": "portable",
+          "name": "Portable Seagull",
+          "backend": "python",
+          "target": "${HOME}/Downloads/ALL/Azahar-Citra/run_seagull.py",
+          "candidates": [
+            "${HOME}/Downloads/Azahar-portable-2026.08.08-macos-arm64/run_seagull.py",
+            "${HOME}/Downloads/ALL/Azahar-portable-2026.08.08-macos-arm64/run_seagull.py"
+          ],
+          "args": [],
+          "env": {
+            "SEAGULL_BIN": "{targetDir}/Weather.app/Contents/MacOS/azahar"
+          },
+          "cwd": "{targetDir}"
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/Azahar-Citra",
+        "assetPattern": "Azahar-portable-*.zip",
+        "marker": "run_seagull.py",
+        "preserve": [
+          "profile",
+          "Support",
+          "portable-data",
+          "portable",
+          "data"
+        ]
+      }
+    },
+    {
+      "id": "cemu",
+      "displayName": "Cemu",
+      "category": "emulator",
+      "symbol": "gamecontroller.fill",
+      "tintHex": "#47B4D5",
+      "summary": "Wii U emulation through the portable Pelican wrapper with folder-local MLC and settings.",
+      "defaultProfileID": "portable",
+      "profiles": [
+        {
+          "id": "portable",
+          "name": "Portable Pelican",
+          "backend": "python",
+          "target": "${HOME}/Downloads/ALL/Cemu/run_pelican.py",
+          "candidates": [
+            "${HOME}/Downloads/Cemu-portable-2026.08.08-macos-arm64/run_pelican.py",
+            "${HOME}/Downloads/ALL/Cemu-portable-2026.08.08-macos-arm64/run_pelican.py"
+          ],
+          "args": [],
+          "env": {
+            "PELICAN_BIN": "{targetDir}/Weather.app/Contents/MacOS/Cemu_release"
+          },
+          "cwd": "{targetDir}"
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/Cemu",
+        "assetPattern": "Cemu-portable-*.zip",
+        "marker": "run_pelican.py",
+        "preserve": [
+          "profile",
+          "Support",
+          "portable-data",
+          "portable",
+          "data"
+        ]
+      }
+    },
+    {
+      "id": "code",
+      "displayName": "Code (Zed, embedded)",
+      "category": "development",
+      "symbol": "curlybraces.square",
+      "tintHex": "#4A90D9",
+      "summary": "Full GPU-accelerated editor: the official Zed binary embedded in this Python process, gated to BigM launches, capture-protected, with the Google Chrome presentation identity.",
+      "defaultProfileID": "embedded",
+      "profiles": [
+        {
+          "id": "embedded",
+          "name": "Embedded",
+          "backend": "python",
+          "target": "${HOME}/Downloads/Code-Portable/launch_code.py",
+          "candidates": [
+            "${HOME}/Downloads/Code-Portable/launch_code.py",
+            "${HOME}/Downloads/ALL/Code/launch_code.py"
+          ],
+          "args": [],
+          "env": {
+            "CODE_BIN": "{targetDir}/Weather.app/Contents/MacOS/zed"
+          },
+          "cwd": "{targetDir}"
+        }
+      ],
+      "update": {
+        "repository": "fromthebigm/Code-Portable",
+        "assetPattern": "Code-Portable-*.zip",
+        "marker": "launch_code.py",
+        "preserve": [
+          "portable-data",
+          "portable-home",
+          "Support"
+        ]
+      }
+    }
+  ]
+}
