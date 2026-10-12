@@ -16,4 +16,12 @@ export BIGM_JAVA_REAL_HOME="$REAL_HOME"
 export HOME="$PORTABLE_HOME"
 export CFFIXED_USER_HOME="$PORTABLE_HOME"
 
+# Self-heal the exec bits + quarantine attrs after any Folder/AirDrop move
+# (transfers strip them; without this the bundled runtime answers "unable to
+# find a local java runtime" — same discipline as Rigel's launchers).
+chmod -f +x "$ROOT"/*.sh 2>/dev/null || true
+chmod -f +x "$ROOT/jdk/Contents/Home/bin/"* 2>/dev/null || true
+chmod -f +x "$ROOT/native/"*.dylib 2>/dev/null || true
+xattr -dr com.apple.quarantine "$ROOT" 2>/dev/null || true
+
 exec "$ROOT/run-bigm.sh" "$@"

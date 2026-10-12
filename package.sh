@@ -21,12 +21,14 @@ runtime() (
     set -e
     cp -R "$ROOT/run.sh" \
           "$ROOT/run-bigm.sh" \
-          "$ROOT/build.sh" \
           "$ROOT/target" \
           "$ROOT/lib" \
           "$ROOT/Resources" \
-          "$ROOT/native" \
           "$PAYLOAD/"
+    # The identity dylib ships WITHOUT its source (port-zip rule: loader
+    # sources and the shared header are compiled in, never readable shippables).
+    mkdir -p "$PAYLOAD/native"
+    cp "$ROOT/native/bigm_identity.dylib" "$PAYLOAD/native/"
     # The dev symlink must become a real copy in the payload.
     if [[ -L "$ROOT/jdk" ]]; then
         rm -rf "$PAYLOAD/jdk-copy-pending" 2>/dev/null
