@@ -32,7 +32,21 @@ public final class GitHubUpdates {
      *  used to show). */
     public static Release latestRelease(String repo, String token)
             throws IOException, InterruptedException {
-        String endpoint = "https://api.github.com/repos/" + repo + "/releases/latest";
+        return fetchRelease("https://api.github.com/repos/" + repo + "/releases/latest",
+                repo, token);
+    }
+
+    /** A release pinned by tag (used by the self-update mirror: the Java
+     *  launcher's own repo is private-scoped per token, while the org keeps
+     *  a `java-latest` tag release in a repo the embedded token can read). */
+    public static Release releaseByTag(String repo, String tag, String token)
+            throws IOException, InterruptedException {
+        return fetchRelease("https://api.github.com/repos/" + repo + "/releases/tags/" + tag,
+                repo, token);
+    }
+
+    private static Release fetchRelease(String endpoint, String repo, String token)
+            throws IOException, InterruptedException {
         GitHubHttp.Answer answer = GitHubHttp.exchange(endpoint, token, Duration.ofSeconds(20));
         int status = answer.status();
         byte[] body = answer.body();
@@ -120,7 +134,7 @@ public final class GitHubUpdates {
                 + " bytes");
     }
 
-    static void requireZipMagic(Path file, String name) throws IOException {
+    public static void requireZipMagic(Path file, String name) throws IOException {
         byte[] head = new byte[4];
         try (var in = Files.newInputStream(file)) {
             int read = in.read(head);

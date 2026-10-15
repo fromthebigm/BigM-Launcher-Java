@@ -19,11 +19,17 @@ public final class Catalog {
 
     public record AppDef(String id, String repository, String assetPattern,
                          String marker, List<String> preserve, String summary,
-                         String displayName) {}
+                         String displayName, String category, String tintHex,
+                         String symbol) {
+        /** True when this entry carries GitHub release metadata. */
+        public boolean updatable() {
+            return repository != null && !repository.isBlank();
+        }
+    }
 
-    public record Profile(String id, String backend, String target,
+    public record Profile(String id, String name, String backend, String target,
                           List<String> candidates, List<String> args,
-                          Map<String, String> env) {}
+                          Map<String, String> env, String cwd) {}
 
     private final List<AppDef> apps;
     private final Map<String, List<Profile>> profilesByApp = new java.util.LinkedHashMap<>();
@@ -49,7 +55,10 @@ public final class Catalog {
                     JsonTiny.str(update, "marker"),
                     strings(JsonTiny.obj(update), "preserve"),
                     JsonTiny.str(app, "summary") != null ? JsonTiny.str(app, "summary") : "",
-                    JsonTiny.str(app, "displayName") != null ? JsonTiny.str(app, "displayName") : id);
+                    JsonTiny.str(app, "displayName") != null ? JsonTiny.str(app, "displayName") : id,
+                    JsonTiny.str(app, "category") != null ? JsonTiny.str(app, "category") : "games",
+                    JsonTiny.str(app, "tintHex") != null ? JsonTiny.str(app, "tintHex") : "#6C7CFF",
+                    JsonTiny.str(app, "symbol") != null ? JsonTiny.str(app, "symbol") : "app.fill");
             apps.add(def);
             List<Profile> profiles = new ArrayList<>();
             for (Object p : JsonTiny.array(app, "profiles")) {
@@ -58,15 +67,18 @@ public final class Catalog {
                 for (Map.Entry<String, Object> kv : JsonTiny.obj(pm.get("env")).entrySet()) {
                     if (kv.getValue() instanceof String s) env.put(kv.getKey(), s);
                 }
+                String profileId = JsonTiny.str(pm, "id");
                 profiles.add(new Profile(
-                        JsonTiny.str(pm, "id"),
+                        profileId,
+                        JsonTiny.str(pm, "name") != null ? JsonTiny.str(pm, "name") : profileId,
                         JsonTiny.str(pm, "backend"),
                         JsonTiny.str(pm, "target"),
                         strings(JsonTiny.obj(pm), "candidates"),
                         strings(JsonTiny.obj(pm), "args"),
-                        env));
+                        env,
+                        JsonTiny.str(pm, "cwd")));
             }
-                    profilesByApp.put(id, List.copyOf(profiles));
+            profilesByApp.put(id, List.copyOf(profiles));
         }
         return new Catalog(apps, profilesByApp);
     }

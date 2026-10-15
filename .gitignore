@@ -11,3 +11,8 @@
 *.dylib
 # Editor/system junk
 .DS_Store
+# Secrets — the embedded release-read token never travels in git
+/Packaging/
+# Build artifacts
+src/core/EmbeddedToken.java.orig
+*.zip

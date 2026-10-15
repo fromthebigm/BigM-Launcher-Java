@@ -182,6 +182,33 @@ public final class InstallEngine {
         run(command, null, 10 * 60);
     }
 
+    /** Newest rollback snapshot for an app, or null. Snapshot folders live
+     *  at portable-data/rollback/<appId>-<epoch>. */
+    public static Path latestBackup(String appId) {
+        Path dir = Paths.portableData().resolve("rollback");
+        if (!Files.isDirectory(dir)) return null;
+        try (var stream = Files.list(dir)) {
+            return stream.filter(p -> p.getFileName().toString().startsWith(appId + "-"))
+                    .max(java.util.Comparator.comparingLong(p -> {
+                        try { return Files.getLastModifiedTime(p).toMillis(); }
+                        catch (IOException e) { return 0L; }
+                    }))
+                    .orElse(null);
+        } catch (IOException failure) {
+            return null;
+        }
+    }
+
+    /** Roll back an install to its latest pre-update snapshot (preserved
+     *  user data folders are never touched, matching the update path). */
+    public static void restoreLatestBackup(Catalog.AppDef app, Path installDir)
+            throws IOException, InterruptedException {
+        Path backup = latestBackup(app.id());
+        if (backup == null) throw new IOException("no snapshot exists for " + app.id());
+        restoreSnapshot(backup, installDir, app.preserve());
+        // The snapshot carries the pre-update version.txt already.
+    }
+
     private static void restoreSnapshot(Path backupDir, Path installDir, List<String> preserve)
             throws IOException, InterruptedException {
         List<String> command = new ArrayList<>(List.of("/usr/bin/rsync", "-a", "--delete"));
@@ -206,6 +233,17 @@ public final class InstallEngine {
                 Files.deleteIfExists(path);
             }
         }
+    }
+
+    /** Exposed for the self-update staging path. */
+    public static void runStatic(List<String> command, Path cwd, int timeoutSeconds)
+            throws IOException, InterruptedException {
+        run(command, cwd, timeoutSeconds);
+    }
+
+    /** Exposed for the self-update staging path. */
+    public static Path locatePayloadPublic(Path extractDir, String marker) throws IOException {
+        return locatePayload(extractDir, marker);
     }
 
     private static void run(List<String> command, Path cwd, int timeoutSeconds)
