@@ -73,6 +73,15 @@ public final class UpdateManager {
             // only changes when the check actually completes.
             try {
                 GitHubUpdates.Release release = selfRelease();
+                if (release == null) {
+                    // No token could read any release — keep the last known
+                    // state if we have one; otherwise show the failure.
+                    if (state.selfTag() == null || state.selfTag().isBlank()) {
+                        state.setSelf(false, "", "no GitHub token available (check Settings)");
+                    }
+                    log("warn", null, "self-update check: no token could read the release");
+                    return;
+                }
                 // The installed stamp lives at ownRoot/version.txt — the
                 // release zips stamp it to their tag; a mismatch means an
                 // update is due.
@@ -93,20 +102,18 @@ public final class UpdateManager {
     /** Self-release lookup: mirror release in BigM-Launcher (tag
      *  `java-latest`, whose name carries the version) is tried first
      *  because the embedded release-read token can always see that repo;
-     *  the canonical repo answers if the token on duty does. */
-    private GitHubUpdates.Release selfRelease() throws Exception {
-        GitHubUpdates.Release mirror = null;
-        try {
-            mirror = withFallback(token -> GitHubUpdates.releaseByTag(
-                    "fromthebigm/BigM-Launcher", "java-latest", token));
-        } catch (Exception mirrorFailure) {
-            // Mirror unreadable → fall through to the canonical repo below.
-        }
+     *  the canonical repo answers if the token on duty does.
+     *  Returns null when no token could read either repo. */
+    private GitHubUpdates.Release selfRelease() {
+        GitHubUpdates.Release mirror = withFallback(token -> {
+            try {
+                return GitHubUpdates.releaseByTag(
+                        "fromthebigm/BigM-Launcher", "java-latest", token);
+            } catch (Exception e) {
+                return null;
+            }
+        });
         if (mirror != null) {
-            // The mirror tag is a rolling name; the REAL version rides in
-            // the release name (e.g. "portable-2026.10.14"). Only accept the
-            // mirror when a real version parses out — a name without one
-            // would poison the tag compare and the version.txt stamp.
             String name = mirror.name();
             if (name != null) {
                 java.util.regex.Matcher match = java.util.regex.Pattern
@@ -120,8 +127,14 @@ public final class UpdateManager {
                         + name + "\"; trying the canonical repo");
             }
         }
-        return withFallback(token -> GitHubUpdates.latestRelease(
-                "fromthebigm/BigM-Launcher-Java", token));
+        return withFallback(token -> {
+            try {
+                return GitHubUpdates.latestRelease(
+                        "fromthebigm/BigM-Launcher-Java", token);
+            } catch (Exception e) {
+                return null;
+            }
+        });
     }
 
     public void installUpdate() {
@@ -287,7 +300,9 @@ public final class UpdateManager {
 
     public void checkAll(java.util.function.Function<Catalog.AppDef, Path> dirFor) {
         for (Catalog.AppDef app : catalog.apps()) {
-            checkAppUpdate(app, dirFor.apply(app));
+            Path dir = dirFor.apply(app);
+            if (dir == null) continue;   // not installed — no version to compare
+            checkAppUpdate(app, dir);
         }
     }
 
@@ -296,8 +311,30 @@ public final class UpdateManager {
                 LauncherState.AppStatus.Phase.CHECKING, "checking…"));
         try {
             GitHubUpdates.Release release = withFallback(
-                    token -> GitHubUpdates.latestRelease(app.repository(), token));
+                    token -> {
+                        try {
+                            return GitHubUpdates.latestRelease(app.repository(), token);
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    });
+            if (release == null) {
+                state.setApp(app.id(), new LauncherState.AppStatus(
+                        LauncherState.AppStatus.Phase.FAILED,
+                        "no GitHub token available (check Settings)"));
+                log("warn", app.id(), "update check: no token could read the release");
+                return;
+            }
             found.put(app.id(), release);
+            // Null installDir = app not installed on this machine (checkAll
+            // sweeps every catalog app); show the latest tag without the
+            // installed-version compare (which would NPE on null.resolve).
+            if (installDir == null) {
+                state.setApp(app.id(), new LauncherState.AppStatus(
+                        LauncherState.AppStatus.Phase.IDLE,
+                        "not installed (latest: " + release.tag() + ")"));
+                return;
+            }
             InstallEngine.Identity landed = InstallEngine.installedIdentity(installDir);
             boolean available = !landed.tag().equals(release.tag());
             state.setApp(app.id(), new LauncherState.AppStatus(
@@ -318,7 +355,19 @@ public final class UpdateManager {
             try {
                 GitHubUpdates.Release release = found.get(app.id());
                 if (release == null) {
-                    release = withFallback(t -> GitHubUpdates.latestRelease(app.repository(), t));
+                    release = withFallback(t -> {
+                        try {
+                            return GitHubUpdates.latestRelease(app.repository(), t);
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    });
+                }
+                if (release == null) {
+                    state.setApp(app.id(), new LauncherState.AppStatus(
+                            LauncherState.AppStatus.Phase.FAILED,
+                            "no GitHub token available (check Settings)"));
+                    return;
                 }
                 final GitHubUpdates.Release pinned = release;
                 state.setApp(app.id(), new LauncherState.AppStatus(
@@ -363,8 +412,10 @@ public final class UpdateManager {
     private interface Call<T> { T apply(String token) throws Exception; }
 
     /** First the resolved token, then the machine's other tokens on
-     *  access-class failure, exactly like the Swift fallbackTokens chain. */
-    private GitHubUpdates.Release withFallback(Call<GitHubUpdates.Release> call) throws Exception {
+     *  access-class failure. Returns null when no token could read the
+     *  release — callers must handle null (the old code THREW here, which
+     *  crashed every update check on machines without a configured token). */
+    private GitHubUpdates.Release withFallback(Call<GitHubUpdates.Release> call) {
         String token = GitHubAccess.resolve();
         if (token != null) {
             try {
@@ -374,13 +425,14 @@ public final class UpdateManager {
             }
         }
         for (String fallback : GitHubAccess.fallbackTokens(token)) {
+            if (fallback == null || fallback.isBlank()) continue;
             try {
                 return call.apply(fallback);
             } catch (Exception ignored) {
                 continue;
             }
         }
-        throw new IOException("no GitHub token could read the release (set one in Settings)");
+        return null;
     }
 
     private static ThreadFactory daemonFactory() {

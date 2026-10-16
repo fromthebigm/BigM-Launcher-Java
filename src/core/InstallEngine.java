@@ -26,6 +26,7 @@ public final class InstallEngine {
 
     /** What the install folder believes it is. Empty tag = unknown/missing. */
     public static Identity installedIdentity(Path installDir) {
+        if (installDir == null) return new Identity("", "");
         Path stamp = installDir.resolve("version.txt");
         if (!Files.isRegularFile(stamp)) return new Identity("", "");
         try {
