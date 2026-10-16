@@ -107,6 +107,25 @@ struct UpdatesSheet: View {
 
     var body: some View {
         SheetScaffold(title: "Updates") {
+            // Manual refresh — one click re-checks the launcher + every app
+            HStack {
+                Text("Last check refreshes each time this sheet opens")
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(chrome.textFaint)
+                Spacer()
+                Button {
+                    store.dispatch("checkAll", id: "")
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Check for Updates")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle(accent: store.palette.accent))
+            }
+
             if let snap = store.snapshot {
                 if snap.selfUpdateAvailable {
                     SheetCard(title: "BigM \(snap.selfUpdateTag ?? "") is available",

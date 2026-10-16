@@ -213,9 +213,11 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
                 Path dir = installDirs.get(id);
                 if (app != null) updates.checkAppUpdate(app, dir);
             }
+            case "checkSelf" -> updates.checkForUpdates();
             case "checkAll", "updateAll" -> {
                 if ("checkAll".equals(action)) {
                     updates.checkAll(installDirs::get);
+                    updates.checkForUpdates();   // also refresh the launcher's own check
                 } else {
                     updates.installAllAvailable(installDirs::get);
                 }

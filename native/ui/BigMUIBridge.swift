@@ -323,6 +323,8 @@ struct SidebarView: View {
                                  alert: store.snapshot?.selfUpdateAvailable == true,
                                  palette: store.palette, variant: store.variant) {
                     store.activeSheet = .updates
+                    // Fresh check the moment the sheet opens — self + per-app
+                    store.dispatch("checkAll", id: "")
                 }
                 SidebarActionRow(icon: "plus.viewfinder",
                                  title: "Get Apps",
