@@ -111,6 +111,43 @@ struct RootView: View {
                         .background(sidebarBackground)
 
                     VStack(spacing: 0) {
+                        // Self-update banner — prominent, first thing you see
+                        if let snap = store.snapshot, snap.selfUpdateAvailable {
+                            HStack(spacing: 10) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.orange)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("BigM \(snap.selfUpdateTag ?? "") is available")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                        .foregroundColor(store.palette.chrome(store.variant).textPrimary)
+                                    Text("You're running \(snap.version)")
+                                        .font(.system(size: 10, design: .rounded))
+                                        .foregroundColor(store.palette.chrome(store.variant).textMuted)
+                                }
+                                Spacer()
+                                Button("Install & Restart") {
+                                    store.dispatch("installSelf", id: "")
+                                }
+                                .buttonStyle(PrimaryButtonStyle(accent: .orange))
+                                Button("Details") {
+                                    store.activeSheet = .updates
+                                }
+                                .buttonStyle(GhostButtonStyle(
+                                    chrome: store.palette.chrome(store.variant)))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.orange.opacity(0.10))
+                                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .strokeBorder(Color.orange.opacity(0.3), lineWidth: 1))
+                            )
+                            .padding(.horizontal, 20)
+                            .padding(.top, 10)
+                        }
+
                         // Header: rescan button + search field
                         HStack {
                             Button {
