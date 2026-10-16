@@ -70,7 +70,7 @@ private struct Painter {
         river(&ctx, &rng)
         reeds(&ctx, &rng)
         forestTrees(&ctx, &rng)
-        manor(&ctx)
+        manor(&ctx, &rng)
         trail(&ctx, &rng)
         heroes(&ctx, &rng)
         airborne(&ctx, &rng)
@@ -584,164 +584,262 @@ private struct Painter {
 
     // MARK: The Manor — a gothic estate on the hill
     //
-    // Inspired by the Roswaal mansion aesthetic: a grand multi-winged
-    // house with steep pitched roofs, a central spire, arched windows
-    // glowing warm at night, set on a rise with the trail approaching
-    // its gate. The river winds past on the right; the manor owns the
-    // left bank.
+    // Roswaal-mansion inspired: grand central block with steep pitched
+    // roof and tower spire, flanked by attached side wings (flush — no
+    // gaps), cobblestone masonry walls, gothic arched windows, warm light
+    // at night. The trail approaches its gate from the bottom-left; the
+    // river stays visible on the right.
 
-    private func manor(_ ctx: inout GraphicsContext) {
-        // Manor sits on a rise on the left bank
-        let mx = w * 0.28, my = horizonY * 1.16
-        let mw = w * 0.10          // main wing width
-        let mh = h * 0.055         // main wing wall height
+    private func manor(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
+        let mx = w * 0.26, my = horizonY * 1.15
+        let mw = w * 0.09           // main wing width
+        let mh = h * 0.050           // main wing wall height
 
-        // Hill mound under the manor
+        // Hill mound — constrained so it doesn't cover the river
+        let hillRight = mx + mw * 1.8   // stays clear of the river path
         let hillColor = CM.mix(s.ground, s.foliage, 0.35)
         var hill = Path()
-        hill.move(to: Pt(mx - mw * 2.2, my + mh * 0.6))
+        hill.move(to: Pt(mx - mw * 2.4, my + mh * 0.8))
         hill.addQuadCurve(to: Pt(mx, my - mh * 0.15),
-                          control: Pt(mx - mw * 1.1, my - mh * 0.2))
-        hill.addQuadCurve(to: Pt(mx + mw * 2.2, my + mh * 0.6),
-                          control: Pt(mx + mw * 1.1, my - mh * 0.2))
-        hill.addLine(to: Pt(mx + mw * 2.4, my + mh * 1.2))
-        hill.addLine(to: Pt(mx - mw * 2.4, my + mh * 1.2))
+                          control: Pt(mx - mw * 1.2, my - mh * 0.25))
+        hill.addQuadCurve(to: Pt(hillRight, my + mh * 0.8),
+                          control: Pt(mx + mw * 1.2, my - mh * 0.25))
+        hill.addLine(to: Pt(hillRight, my + mh * 1.5))
+        hill.addLine(to: Pt(mx - mw * 2.4, my + mh * 1.5))
         hill.closeSubpath()
         ctx.fill(hill, with: .color(hillColor))
 
-        // Cast shadow — light from upper-right, shadow falls left
+        // Cast shadow — light from upper-right, falls left
         var sh = Path()
-        sh.move(to: Pt(mx - mw, my + mh))
-        sh.addLine(to: Pt(mx + mw, my + mh))
-        sh.addLine(to: Pt(mx - mw * 1.8, my + mh * 1.3))
+        sh.move(to: Pt(mx - mw * 1.4, my + mh))
+        sh.addLine(to: Pt(mx + mw * 0.8, my + mh))
+        sh.addLine(to: Pt(mx - mw * 2.2, my + mh * 1.4))
         sh.closeSubpath()
-        ctx.opacity = 0.3
+        ctx.opacity = 0.25
         ctx.fill(sh, with: .color(s.shadow))
         ctx.opacity = 1
 
-        let wallDay = CM.mix(CM.hex(0x8A8F98), s.skyHorizon, 0.35)
-        let wallNight = CM.mix(CM.hex(0x2A3040), s.skyTop, 0.3)
+        // Wall + roof colors
+        let wallDay = CM.mix(CM.hex(0x9A98A0), s.skyHorizon, 0.30)
+        let wallNight = CM.mix(CM.hex(0x2C2E3A), s.skyTop, 0.25)
         let wall = variant == .day ? wallDay : wallNight
-        let roofDay = CM.hex(0x3A3844)
+        let roofDay = CM.hex(0x3A3542)
         let roofNight = CM.hex(0x1A1822)
         let roof = variant == .day ? roofDay : roofNight
-        let timber = CM.mix(roof, s.shadow, 0.4)
+        let mortar = CM.mix(wall, s.shadow, 0.35)
 
-        // ── Left wing (smaller, two stories) ──
-        let lw = mw * 0.55, lh = mh * 0.7
-        let lx = mx - mw - lw * 0.4
-        let ly = my + mh - lh
-        // walls
-        ctx.fill(Path(R(lx, ly, lw, lh)), with: .color(wall))
-        // roof (steep pitched)
+        // ── LEFT WING — flush against the main wing's left wall ──
+        let lw = mw * 0.55, lh = mh * 0.65
+        let lx = mx - mw / 2 - lw       // ends exactly at main wing's left edge
+        let ly = my + mh - lh           // bottom aligned with main wing
+        // masonry walls
+        paintMasonry(&ctx, x: lx, y: ly, w: lw, h: lh, rng: &rng,
+                     base: CM.scale(wall, 0.92), mortar: mortar)
+        // roof
         var lRoof = Path()
-        lRoof.move(to: Pt(lx - lw * 0.12, ly))
+        lRoof.move(to: Pt(lx - lw * 0.10, ly))
         lRoof.addLine(to: Pt(lx + lw / 2, ly - lh * 0.55))
-        lRoof.addLine(to: Pt(lx + lw * 1.12, ly))
+        lRoof.addLine(to: Pt(lx + lw * 1.10, ly))
         lRoof.closeSubpath()
         ctx.fill(lRoof, with: .color(roof))
-        // windows
-        paintManorWindows(&ctx, x: lx, y: ly, w: lw, h: lh, cols: 2, floorH: lh / 2)
+        // left wing windows (1 column, inset from the seam)
+        paintManorWindows(&ctx, x: lx + lw * 0.15, y: ly + lh * 0.1,
+                          w: lw * 0.7, h: lh * 0.8, cols: 2, floorH: lh * 0.45)
 
-        // ── Main wing (grand, three stories) ──
-        // walls
-        ctx.fill(Path(R(mx - mw / 2, my - mh * 0.3, mw, mh * 1.3)), with: .color(wall))
-        // timber framing lines (gothic half-timber)
-        ctx.opacity = 0.5
-        for fy in 0..<3 {
-            let y = my - mh * 0.3 + Double(fy) * mh * 0.43
-            ctx.stroke(Path(R(mx - mw / 2, y, mw, 0.5)), with: .color(timber), lineWidth: 1)
-        }
-        ctx.stroke(Path(R(mx - 0.5, my - mh * 0.3, 1, mh * 1.3)), with: .color(timber), lineWidth: 1)
-        ctx.opacity = 1
-        // main roof (very steep, gothic pitch)
+        // ── MAIN WING — grand central block ──
+        let mainX = mx - mw / 2
+        let mainY = my - mh * 0.25
+        let mainH = mh * 1.25
+        // masonry walls
+        paintMasonry(&ctx, x: mainX, y: mainY, w: mw, h: mainH, rng: &rng,
+                     base: wall, mortar: mortar)
+        // gothic roof (very steep)
         var mRoof = Path()
-        mRoof.move(to: Pt(mx - mw * 0.62, my - mh * 0.3))
-        mRoof.addLine(to: Pt(mx, my - mh * 1.05))
-        mRoof.addLine(to: Pt(mx + mw * 0.62, my - mh * 0.3))
+        mRoof.move(to: Pt(mx - mw * 0.60, mainY))
+        mRoof.addLine(to: Pt(mx, mainY - mh * 0.90))
+        mRoof.addLine(to: Pt(mx + mw * 0.60, mainY))
         mRoof.closeSubpath()
         ctx.fill(mRoof, with: .color(roof))
-        // roof edge highlight
-        ctx.stroke(mRoof, with: .color(CM.mix(roof, palette.ink, 0.15)),
+        ctx.stroke(mRoof, with: .color(CM.mix(roof, palette.ink, 0.12)),
                    style: StrokeStyle(lineWidth: 1, lineJoin: .round))
-        // windows (3 floors, 4 columns)
-        paintManorWindows(&ctx, x: mx - mw / 2, y: my - mh * 0.25,
-                          w: mw, h: mh * 1.2, cols: 4, floorH: mh * 0.40)
+        // main wing windows — 3 floors × 3 columns, INSET from both edges
+        // so no window touches the wing seams
+        let winInset = mw * 0.12
+        paintManorWindows(&ctx, x: mainX + winInset, y: mainY + mh * 0.10,
+                          w: mw - winInset * 2, h: mainH * 0.75,
+                          cols: 3, floorH: mh * 0.36)
 
-        // ── Central tower + spire ──
-        let tw = mw * 0.28, th = mh * 1.8
-        let tx = mx + mw * 0.35
-        // tower walls
-        ctx.fill(Path(R(tx, my - th, tw, th + mh * 0.4)), with: .color(wall))
+        // ── RIGHT WING — flush against the main wing's right wall ──
+        let rw = mw * 0.40, rh = mh * 0.50
+        let rx = mx + mw / 2             // starts exactly at main wing's right edge
+        let ry = my + mh - rh             // bottom aligned
+        // masonry walls
+        paintMasonry(&ctx, x: rx, y: ry, w: rw, h: rh, rng: &rng,
+                     base: CM.scale(wall, 0.88), mortar: mortar)
+        // roof
+        var rRoof = Path()
+        rRoof.move(to: Pt(rx - rw * 0.10, ry))
+        rRoof.addLine(to: Pt(rx + rw / 2, ry - rh * 0.50))
+        rRoof.addLine(to: Pt(rx + rw * 1.10, ry))
+        rRoof.closeSubpath()
+        ctx.fill(rRoof, with: .color(roof))
+        // right wing windows (1 column, inset from the seam)
+        paintManorWindows(&ctx, x: rx + rw * 0.15, y: ry + rh * 0.12,
+                          w: rw * 0.7, h: rh * 0.75, cols: 1, floorH: rh * 0.45)
+
+        // ── Wing seams — thin dark lines where wings join the main block ──
+        ctx.opacity = 0.5
+        ctx.stroke(Path(R(mx - mw / 2, ly, 1, mh)), with: .color(mortar), lineWidth: 1)
+        ctx.stroke(Path(R(mx + mw / 2, ry, 1, rh)), with: .color(mortar), lineWidth: 1)
+        ctx.opacity = 1
+
+        // ── CENTRAL TOWER + SPIRE — rises from behind the main wing ──
+        let tw = mw * 0.25, th = mh * 1.5
+        let tx = mx + mw * 0.30
+        // tower masonry
+        paintMasonry(&ctx, x: tx, y: my - th, w: tw, h: th + mh * 0.3, rng: &rng,
+                     base: CM.scale(wall, 0.95), mortar: mortar)
         // spire (pointed gothic)
         var spire = Path()
         spire.move(to: Pt(tx - tw * 0.65, my - th))
-        spire.addLine(to: Pt(tx + tw / 2, my - th - mh * 0.75))
+        spire.addLine(to: Pt(tx + tw / 2, my - th - mh * 0.70))
         spire.addLine(to: Pt(tx + tw * 1.65, my - th))
         spire.closeSubpath()
         ctx.fill(spire, with: .color(roof))
-        // spire tip finial
-        ctx.stroke(Path(R(tx + tw / 2, my - th - mh * 0.75, 1, mh * 0.12)),
+        // spire finial
+        ctx.stroke(Path(R(tx + tw / 2, my - th - mh * 0.70, 1, mh * 0.10)),
                    with: .color(CM.mix(roof, palette.ink, 0.2)), lineWidth: 1.5)
-        // tower windows (one per floor, arched)
+        // tower windows (one per floor, arched, centered)
         for fy in 0..<3 {
-            let wy = my - th + Double(fy) * th / 3.5 + th * 0.1
+            let wy = my - th + Double(fy) * th / 3.5 + th * 0.12
             paintArchedWindow(&ctx, x: tx + tw * 0.25, y: wy,
-                              w: tw * 0.5, h: th * 0.14)
+                              w: tw * 0.50, h: th * 0.13)
         }
 
-        // ── Right wing (small, connects toward the river) ──
-        let rw = mw * 0.4, rh = mh * 0.55
-        let rx = mx + mw / 2
-        let ry = my + mh - rh
-        ctx.fill(Path(R(rx, ry, rw, rh)), with: .color(wall))
-        var rRoof = Path()
-        rRoof.move(to: Pt(rx - rw * 0.12, ry))
-        rRoof.addLine(to: Pt(rx + rw / 2, ry - rh * 0.5))
-        rRoof.addLine(to: Pt(rx + rw * 1.12, ry))
-        rRoof.closeSubpath()
-        ctx.fill(rRoof, with: .color(roof))
-        paintManorWindows(&ctx, x: rx, y: ry, w: rw, h: rh, cols: 2, floorH: rh)
-
-        // ── Chimneys (two tall gothic stacks) ──
-        for (cx, cw, ch) in [(mx - mw * 0.30, mw * 0.06, mh * 0.55),
-                              (mx + mw * 0.25, mw * 0.05, mh * 0.70)] {
-            let cyy = my - mh * 0.3 - ch - mh * 0.5
-            ctx.fill(Path(R(cx, cyy, cw, ch + mh * 0.5)), with: .color(CM.scale(wall, 0.6)))
+        // ── CHIMNEYS — two gothic stacks with caps ──
+        for (cx, cw, ch) in [(mx - mw * 0.28, mw * 0.055, mh * 0.50),
+                              (mx + mw * 0.22, mw * 0.050, mh * 0.65)] {
+            let cyy = my - mh * 0.25 - ch - mh * 0.35
+            paintMasonry(&ctx, x: cx, y: cyy, w: cw, h: ch + mh * 0.35, rng: &rng,
+                         base: CM.scale(wall, 0.70), mortar: mortar)
             // cap
-            ctx.fill(Path(R(cx - cw * 0.2, cyy, cw * 1.4, mh * 0.05)), with: .color(roof))
-            // Day: smoke wisp; night: thin smoke barely visible
+            ctx.fill(Path(R(cx - cw * 0.25, cyy, cw * 1.5, mh * 0.045)), with: .color(roof))
+            // smoke wisp (day only, night barely visible)
             if variant == .day {
-                for (i, radius) in [(0, 3.0), (1, 4.5), (2, 6.0)].enumerated() {
+                for i in 0..<3 {
                     let smokeX = cx + cw / 2 + Double(i) * 3
                     let smokeY = cyy - Double(i) * 5
-                    ctx.opacity = 0.08 - Double(i) * 0.02
-                    ctx.fill(Path(ellipseIn: R(smokeX - radius.1, smokeY - radius.1,
-                                               radius.1 * 2, radius.1 * 2)),
+                    let smokeR = 3.0 + Double(i) * 1.5
+                    ctx.opacity = 0.07 - Double(i) * 0.018
+                    ctx.fill(Path(ellipseIn: R(smokeX - smokeR, smokeY - smokeR,
+                                               smokeR * 2, smokeR * 2)),
                              with: .color(palette.ink))
                 }
                 ctx.opacity = 1
             }
         }
 
-        // ── Arched front door ──
-        let doorW = mw * 0.12, doorH = mh * 0.35
-        let doorX = mx - mw * 0.06, doorY = my + mh * 0.65
+        // ── ARCHED FRONT DOOR with cobblestone step ──
+        let doorW = mw * 0.14, doorH = mh * 0.35
+        let doorX = mx - doorW / 2, doorY = my + mh * 0.65
+        // cobblestone step under the door
+        ctx.fill(Path(R(doorX - doorW * 0.3, doorY + doorH, doorW * 1.6, mh * 0.06)),
+                 with: .color(CM.mix(CM.hex(0x8A8890), s.shadow, 0.3)))
         var door = Path()
         door.move(to: Pt(doorX, doorY + doorH))
-        door.addLine(to: Pt(doorX, doorY + doorH * 0.3))
-        door.addQuadCurve(to: Pt(doorX + doorW, doorY + doorH * 0.3),
-                          control: Pt(doorX + doorW / 2, doorY - doorH * 0.1))
+        door.addLine(to: Pt(doorX, doorY + doorH * 0.35))
+        door.addQuadCurve(to: Pt(doorX + doorW, doorY + doorH * 0.35),
+                          control: Pt(doorX + doorW / 2, doorY - doorH * 0.08))
         door.addLine(to: Pt(doorX + doorW, doorY + doorH))
         door.closeSubpath()
-        ctx.fill(door, with: .color(timber))
+        ctx.fill(door, with: .color(CM.mix(roof, s.shadow, 0.3)))
         // door glow at night
         if variant == .night {
-            ctx.opacity = 0.35
-            ctx.fill(Path(ellipseIn: R(doorX - doorW * 0.5, doorY + doorH * 0.1,
-                                        doorW * 2, doorH * 1.5)),
+            ctx.opacity = 0.30
+            ctx.fill(Path(ellipseIn: R(doorX - doorW * 0.4, doorY + doorH * 0.1,
+                                        doorW * 1.8, doorH * 1.4)),
                      with: .color(palette.accent))
             ctx.opacity = 1
+        }
+
+        // ── Cobblestone path from the door to the trail end ──
+        let pathStartX = doorX + doorW / 2
+        let pathStartY = doorY + doorH + mh * 0.06
+        var cobble = Path()
+        cobble.move(to: Pt(pathStartX - mw * 0.12, pathStartY))
+        cobble.addQuadCurve(to: Pt(pathStartX - mw * 0.08, pathStartY + mh * 0.35),
+                            control: Pt(pathStartX - mw * 0.14, pathStartY + mh * 0.18))
+        cobble.addQuadCurve(to: Pt(pathStartX - mw * 0.04, pathStartY + mh * 0.55),
+                            control: Pt(pathStartX - mw * 0.02, pathStartY + mh * 0.45))
+        cobble.addLine(to: Pt(pathStartX + mw * 0.10, pathStartY + mh * 0.55))
+        cobble.addQuadCurve(to: Pt(pathStartX + mw * 0.14, pathStartY + mh * 0.35),
+                            control: Pt(pathStartX + mw * 0.10, pathStartY + mh * 0.45))
+        cobble.addQuadCurve(to: Pt(pathStartX + mw * 0.12, pathStartY),
+                            control: Pt(pathStartX + mw * 0.16, pathStartY + mh * 0.18))
+        cobble.closeSubpath()
+        let cobbleColor = CM.mix(CM.hex(0x7A7880), s.ground, 0.35)
+        ctx.opacity = 0.75
+        ctx.fill(cobble, with: .color(cobbleColor))
+        // individual cobblestones on the path
+        for _ in 0..<12 {
+            let px = pathStartX + rng.range(-mw * 0.10, mw * 0.10)
+            let py = pathStartY + rng.range(0, mh * 0.5)
+            let pr = rng.range(1.0, 2.2)
+            ctx.opacity = 0.4
+            ctx.fill(Path(ellipseIn: R(px, py, pr, pr * 0.7)),
+                     with: .color(CM.scale(cobbleColor, rng.range(0.8, 1.2))))
+        }
+        ctx.opacity = 1
+    }
+
+    /// Cobblestone masonry — horizontal ashlar courses with mortar lines
+    /// and per-block tone variation. Gives the manor walls actual stone
+    /// texture instead of flat color.
+    private func paintMasonry(_ ctx: inout GraphicsContext,
+                               x: Double, y: Double, w: Double, h: Double,
+                               rng: inout SplitMix64,
+                               base: Color, mortar: Color) {
+        // Base fill
+        ctx.fill(Path(R(x, y, w, h)), with: .color(base))
+
+        // Courses — gothic ashlar: regularly cut blocks in horizontal bands
+        let courseH = max(2.5, h * 0.09)
+        let rows = max(1, Int(h / courseH))
+        let blockW = courseH * 1.8
+
+        for row in 0..<rows {
+            let ry = y + Double(row) * courseH
+            let rowBottom = min(ry + courseH, y + h)
+
+            // Mortar line between courses
+            if row < rows - 1 {
+                ctx.opacity = 0.35
+                ctx.fill(Path(R(x, rowBottom - 0.6, w, 0.6)), with: .color(mortar))
+                ctx.opacity = 1
+            }
+
+            // Blocks — running bond (every other row offset by half a block)
+            let offset = row % 2 == 0 ? 0.0 : blockW * 0.5
+            var bx = x - offset
+            while bx < x + w {
+                let bw = min(blockW * rng.range(0.8, 1.2), x + w - bx)
+                if bw <= 0 { break }
+                // Clip to the wall bounds
+                let clipX = max(x, bx)
+                let clipW = min(bx + bw, x + w) - clipX
+                if clipW > 0 && rng.chance(0.7) {
+                    // Per-block tone variation — some lighter, some darker
+                    let shade = rng.range(-0.06, 0.05)
+                    let blockColor = shade >= 0
+                        ? CM.mix(base, palette.ink, shade)
+                        : CM.mix(base, s.shadow, -shade)
+                    ctx.opacity = 0.6
+                    ctx.fill(Path(R(clipX, ry, clipW, rowBottom - ry - 0.4)),
+                             with: .color(blockColor))
+                    ctx.opacity = 1
+                }
+                bx += bw
+            }
         }
     }
 
