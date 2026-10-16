@@ -251,23 +251,23 @@ struct SettingsSheet: View {
                     }
                 }
 
-                SheetCard(title: "Library", icon: "folder.fill") {
+                SheetCard(title: "Apps Folder (Scan + Install)", icon: "folder.fill") {
+                    Text("The one folder BigM uses for everything: auto-scanning for existing launchers and installing new ones. Apps install into subfolders inside it.")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundColor(chrome.textMuted)
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Default install folder")
-                                .font(.system(size: 12, design: .rounded))
-                                .foregroundColor(chrome.textMuted)
-                            Text(settings.defaultInstallFolder ?? "Chosen on first install")
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundColor(chrome.textPrimary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
+                        Text(settings.defaultInstallFolder ?? "Not set — the prompt appears on launch")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(settings.defaultInstallFolder != nil ? chrome.textPrimary : chrome.textFaint)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                         Spacer()
                         Button("Choose…") {
                             pickFolder { store.dispatch("setDefaultFolder", id: $0) }
                         }
                         .buttonStyle(GhostButtonStyle(chrome: chrome))
+                        Button("Rescan") { store.dispatch("rescan", id: "") }
+                            .buttonStyle(GhostButtonStyle(chrome: chrome))
                     }
                 }
 
@@ -406,7 +406,7 @@ struct GetAppsSheet: View {
     var body: some View {
         SheetScaffold(title: "Get Apps") {
             SheetCard(title: "Already On This Mac", icon: "magnifyingglass") {
-                Text("Point at a folder — every launcher found inside is wired in automatically by its launch file (run-rigel.sh, launch scripts, .app bundles).")
+                Text("Point at a folder — every launcher found inside is wired in automatically by its launch file (run-rigel.sh, launch scripts, .app bundles). Your default apps folder is set in Settings; this scan checks any folder you pick.")
                     .font(.system(size: 11, design: .rounded))
                     .foregroundColor(chrome.textMuted)
                 Button("Choose a Folder & Scan…") {

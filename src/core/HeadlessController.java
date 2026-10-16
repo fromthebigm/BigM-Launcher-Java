@@ -173,6 +173,10 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         json.fieldOpt("defaultInstallFolder", config.defaultInstallFolder());
         json.closeObject();
 
+        // True when the launcher has never been given its apps folder —
+        // the UI shows a first-launch prompt when this is null.
+        json.field("needsDefaultFolder", config.defaultInstallFolder() == null);
+
         // Diagnostics events (the sheet reads the last 100)
         json.array("events");
         List<String> snapshot = new ArrayList<>(events);
@@ -234,7 +238,19 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
             case "setDefaultFolder" -> {
                 if (id != null && !id.isBlank()) {
                     config.setDefaultInstallFolder(id);
-                    log("info", null, "default install folder: " + id);
+                    // Immediately scan the chosen folder — the first-launch
+                    // pick doubles as the initial auto-detect pass.
+                    scanFolder(id);
+                    log("success", null, "default apps folder: " + id);
+                }
+                pushState();
+            }
+            case "rescan" -> {
+                String folder = config.defaultInstallFolder();
+                if (folder != null && !folder.isBlank()) {
+                    scanFolder(folder);
+                } else {
+                    log("warn", null, "no default folder set — pick one in Settings first");
                 }
                 pushState();
             }

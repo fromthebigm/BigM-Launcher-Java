@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ObjectiveC
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE BRIDGE — Java pushes JSON state; Swift renders it; Swift sends actions
@@ -57,6 +58,7 @@ struct StateSnapshot: Codable {
     let runningCount: Int
     let settings: SettingsModel?
     let events: [String]?
+    let needsDefaultFolder: Bool?
 }
 
 // MARK: - Action handler (C function pointer, registered by Java)
@@ -100,6 +102,8 @@ struct RootView: View {
 
             if store.showGate {
                 GateView()
+            } else if store.snapshot?.needsDefaultFolder == true {
+                FirstLaunchFolderPrompt()
             } else {
                 HStack(spacing: 0) {
                     SidebarView()
@@ -107,31 +111,54 @@ struct RootView: View {
                         .background(sidebarBackground)
 
                     VStack(spacing: 0) {
-                        // Search field
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 12))
-                                .foregroundColor(store.palette.chrome(store.variant).textMuted)
-                            TextField("Search library", text: $searchText)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 12, design: .rounded))
-                                .foregroundColor(store.palette.chrome(store.variant).textPrimary)
-                                .tint(store.palette.chrome(store.variant).textPrimary)
-                                .accentColor(store.palette.chrome(store.variant).textPrimary)
+                        // Header: rescan button + search field
+                        HStack {
+                            Button {
+                                store.dispatch("rescan", id: "")
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.system(size: 10, weight: .semibold))
+                                    Text("Rescan")
+                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                }
+                                .foregroundColor(store.palette.accent)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(
+                                    Capsule()
+                                        .fill(store.palette.accent.opacity(0.12))
+                                        .overlay(Capsule().strokeBorder(
+                                            store.palette.accent.opacity(0.35), lineWidth: 0.8))
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            Spacer()
+
+                            HStack(spacing: 8) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(store.palette.chrome(store.variant).textMuted)
+                                TextField("Search library", text: $searchText)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12, design: .rounded))
+                                    .foregroundColor(store.palette.chrome(store.variant).textPrimary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                Capsule()
+                                    .fill(store.palette.chrome(store.variant).cardFill.opacity(0.95))
+                                    .overlay(Capsule().strokeBorder(
+                                        store.palette.chrome(store.variant).separator.opacity(0.6),
+                                        lineWidth: 0.8))
+                            )
+                            .frame(width: 230)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(
-                            Capsule()
-                                .fill(store.palette.chrome(store.variant).cardFill.opacity(0.95))
-                                .overlay(Capsule().strokeBorder(
-                                    store.palette.chrome(store.variant).separator.opacity(0.6),
-                                    lineWidth: 0.8))
-                        )
-                        .frame(width: 230)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
                         .padding(.horizontal, 20)
                         .padding(.top, 14)
+                        .padding(.bottom, 6)
 
                         ScrollView(.vertical, showsIndicators: true) {
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 270, maximum: 360),
@@ -446,9 +473,68 @@ struct GateView: View {
     private func submit() {
         guard !key.isEmpty else { return }
         store.dispatch("activate", id: key)
-        // Optimistically hide the gate; Java pushes a fresh state which
-        // re-shows it if the key failed.
         store.showGate = false
+    }
+}
+
+// MARK: - First-launch folder prompt
+
+/// Shown when the launcher has no default apps folder yet — one pick sets
+/// the folder used for BOTH auto-scanning (detecting existing launchers)
+/// and installing (new apps land in subfolders inside it). The same
+/// folder lives in Settings afterward, changeable any time.
+struct FirstLaunchFolderPrompt: View {
+    @EnvironmentObject var store: StateStore
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 36))
+                .foregroundColor(store.palette.accent)
+            Text("Welcome to BigM")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundColor(store.palette.chrome(store.variant).textPrimary)
+            Text("Choose the folder where your launchers live.\nBigM uses this same folder to find existing apps and to install new ones.")
+                .font(.system(size: 12, design: .rounded))
+                .foregroundColor(store.palette.chrome(store.variant).textMuted)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+
+            Button {
+                pickFolder { path in
+                    store.dispatch("setDefaultFolder", id: path)
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 13))
+                    Text("Choose Apps Folder…")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                }
+                .foregroundColor(.white.opacity(0.95))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(store.palette.accent.opacity(0.35))
+                        .overlay(Capsule().strokeBorder(store.palette.accent.opacity(0.6), lineWidth: 1))
+                )
+            }
+            .buttonStyle(.plain)
+
+            Button("Skip for now") {
+                store.dispatch("setDefaultFolder", id: NSHomeDirectory() + "/Downloads")
+            }
+            .font(.system(size: 11, design: .rounded))
+            .foregroundColor(store.palette.chrome(store.variant).textFaint)
+            .buttonStyle(.plain)
+        }
+        .padding(40)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(store.palette.chrome(store.variant).chromeRaised.opacity(0.95))
+                .shadow(color: .black.opacity(0.5), radius: 30)
+        )
     }
 }
 
@@ -495,9 +581,7 @@ public func bigmUILaunch() -> Int32 {
     // Java runs with -XstartOnFirstThread, so this call arrives ON the
     // AppKit main thread (thread 0). Set up synchronously, then hand the
     // thread to NSApplication.run() — which blocks forever running the
-    // event loop. That blocking call is what keeps the JVM alive and the
-    // window responsive; without it the async-queued setup never ran and
-    // the process exited instantly (the "launcher aint running" bug).
+    // event loop.
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
 
@@ -524,8 +608,21 @@ public func bigmUILaunch() -> Int32 {
     window.appearance = NSAppearance(named: .darkAqua)
     window.isReleasedWhenClosed = false
 
+    // Screenshot + screen-share protection: the window never appears in
+    // screenshots, screen recordings, or screen-share picks.
+    window.sharingType = .none
+
     let rootView = RootView().environmentObject(sharedStore)
     window.contentView = NSHostingView(rootView: rootView)
+
+    // X button = quit the whole app (not a zombie process with no windows).
+    // The delegate intercepts the close and terminates NSApplication,
+    // which ends app.run() and lets the JVM main thread return.
+    let closeDelegate = QuitOnCloseDelegate()
+    window.delegate = closeDelegate
+    objc_setAssociatedObject(window, &CloseDelegateKey.key, closeDelegate,
+                             .OBJC_ASSOCIATION_RETAIN)
+
     window.center()
     window.makeKeyAndOrderFront(nil)
     app.activate(ignoringOtherApps: true)
@@ -533,6 +630,18 @@ public func bigmUILaunch() -> Int32 {
     // Own the run loop until the user quits. Never returns.
     app.run()
     return 0
+}
+
+/// Window delegate that turns the close (X) button into a full app quit.
+private final class QuitOnCloseDelegate: NSObject, NSWindowDelegate {
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        NSApplication.shared.terminate(nil)
+        return true
+    }
+}
+
+private enum CloseDelegateKey {
+    static var key: UInt8 = 0
 }
 
 @_cdecl("bigm_ui_snapshot")
