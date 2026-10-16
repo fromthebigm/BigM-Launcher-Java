@@ -86,7 +86,7 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         InstallEngine.Identity self = InstallEngine.installedIdentity(root);
         json.field("windowTitle", "BigM");
         json.field("themeKey", config.uiAccent());
-        json.field("variant", "auto");
+        json.field("variant", config.uiVariant());
         json.field("activated", activated);
         json.field("version", self.tag() == null || self.tag().isBlank()
                 ? "dev build" : self.tag());
@@ -166,6 +166,21 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         json.fieldOpt("selfUpdateMessage", updates.state().downloadMessage());
         json.field("runningCount", running.size());
 
+        // Settings the sheets read (theme, variant, install folder…)
+        json.object("settings");
+        json.field("themeKey", config.uiAccent());
+        json.field("variant", config.uiVariant());
+        json.fieldOpt("defaultInstallFolder", config.defaultInstallFolder());
+        json.closeObject();
+
+        // Diagnostics events (the sheet reads the last 100)
+        json.array("events");
+        List<String> snapshot = new ArrayList<>(events);
+        for (int i = Math.max(0, snapshot.size() - 100); i < snapshot.size(); i++) {
+            json.stringElement(snapshot.get(i));
+        }
+        json.closeArray();
+
         return json.finish();
     }
 
@@ -186,20 +201,83 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
                 selectedFilter = id;
                 pushState();
             }
-            case "scanFolder" -> {
-                // Swift will show the folder picker; when it sends the
-                // result back as {"action":"scanFolderResult","id":"<path>"},
-                // we run the scan
-                pushState();
-            }
             case "scanFolderResult" -> scanFolder(id);
             case "activate" -> activate(id);
             case "quitApp" -> System.exit(0);
-            case "openSheet" -> {
-                // Sheets are SwiftUI-native; for now just log
-                log("info", null, "sheet requested: " + id);
+            case "checkOne" -> {
+                Catalog.AppDef app = findApp(id);
+                Path dir = installDirs.get(id);
+                if (app != null) updates.checkAppUpdate(app, dir);
             }
+            case "checkAll", "updateAll" -> {
+                if ("checkAll".equals(action)) {
+                    updates.checkAll(installDirs::get);
+                } else {
+                    updates.installAllAvailable(installDirs::get);
+                }
+            }
+            case "installSelf" -> updates.installUpdate();
+            case "setTheme" -> {
+                config.setUiAccent(id);
+                pushState();
+            }
+            case "setVariant" -> {
+                // Actually store the preference — the old handler ignored
+                // the requested value and pushed "auto" every time, so the
+                // night scene never appeared.
+                if (id != null && !id.isBlank()) {
+                    config.setUiVariant(id);
+                    log("info", null, "scenery variant: " + id);
+                }
+                pushState();
+            }
+            case "setDefaultFolder" -> {
+                if (id != null && !id.isBlank()) {
+                    config.setDefaultInstallFolder(id);
+                    log("info", null, "default install folder: " + id);
+                }
+                pushState();
+            }
+            case "revealFile" -> revealFile(id);
+            case "setLauncherIcon" -> setLauncherIcon(id);
+            case "resetLauncherIcon" -> {
+                IconStore.resetLauncherIcon();
+                log("info", null, "launcher icon reset to the bundled preset");
+            }
+            case "showGate" -> pushState();
+            case "addCustomApp" -> log("info", null, "add custom app: form pending");
+            case "addWebsite" -> log("info", null, "add website: form pending");
             default -> log("warn", null, "unknown action: " + action);
+        }
+    }
+
+    private void revealFile(String which) {
+        Path target = switch (which == null ? "" : which) {
+            case "transportLog" -> Paths.transportLog();
+            case "config" -> Paths.support().resolve("config.properties");
+            default -> Paths.support();
+        };
+        try {
+            if ("config".equals(which) && !Files.exists(target)) {
+                new ProcessBuilder("/usr/bin/open", "-R", Paths.support().toString()).start();
+            } else if (Files.exists(target)) {
+                new ProcessBuilder("/usr/bin/open", "-R", target.toString()).start();
+            } else {
+                new ProcessBuilder("/usr/bin/open", Paths.support().toString()).start();
+            }
+        } catch (IOException failure) {
+            log("error", null, "reveal failed: " + failure.getMessage());
+        }
+    }
+
+    private void setLauncherIcon(String appBundlePath) {
+        if (appBundlePath == null || appBundlePath.isBlank()) return;
+        boolean ok = IconStore.applyCustomIcon(IconStore.LAUNCHER_ID, Path.of(appBundlePath));
+        if (ok) {
+            IconStore.applyLauncherIcon();
+            log("success", null, "launcher dock icon set from " + Path.of(appBundlePath).getFileName());
+        } else {
+            log("error", null, "could not render an icon from " + appBundlePath);
         }
     }
 
@@ -492,4 +570,16 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
             default -> raw == null || raw.isBlank() ? "Apps" : raw;
         };
     }
+
+    // Test-support helpers (invoked via reflection by the harness)
+    void populateInstallDirs() {
+        for (Catalog.AppDef app : visibleApps()) {
+            Path dir = installDirFor(app);
+            if (dir != null) installDirs.put(app.id(), dir);
+        }
+    }
+    void putInstallDir(String id, Path dir) { installDirs.put(id, dir); }
+
+    Path getInstallDir(String appId) { return installDirs.get(appId); }
+    boolean isAppRunning(String appId) { return running.containsKey(appId); }
 }

@@ -62,9 +62,14 @@ private struct Painter {
         farRidge(&ctx)
         treeline(&ctx, &rng)
         mist(&ctx, &rng, at: horizonY * 1.14, alpha: 0.045)
+        // Ground planes first, then the river CARVED through them (the
+        // forest ground used to paint over the river and hide it), then
+        // the life on top.
+        meadow(&ctx, &rng)
+        forestGround(&ctx, &rng)
         river(&ctx, &rng)
-        shoreline(&ctx, &rng)
-        forest(&ctx, &rng)
+        reeds(&ctx, &rng)
+        forestTrees(&ctx, &rng)
         cabin(&ctx)
         trail(&ctx, &rng)
         heroes(&ctx, &rng)
@@ -130,23 +135,22 @@ private struct Painter {
                          with: .color(wisp))
             }
             ctx.opacity = 1
-            // Day: cumulus with shaded undersides
+            // Day: cumulus with shaded undersides — puffs packed tight so
+            // the cluster reads as one cloud, not scattered eggs.
             let cTop = CM.mix(palette.ink, s.skyHorizon, 0.30)
             let cBelly = CM.mix(s.skyHorizon, CM.scale(s.shadow, 1.0), 0.42)
             for (cx, cy, sc) in [(0.22, 0.11, 1.0), (0.58, 0.075, 1.2), (0.84, 0.15, 0.8)] {
-                let px = cx * w, py = cy * h
-                let puffs: [(Double, Double, Double)] = [
-                    (0.0, 0.0, 0.34), (-0.28, 0.01, 0.25), (0.28, 0.012, 0.27),
-                    (-0.12, -0.026, 0.23), (0.12, -0.03, 0.21), (-0.45, 0.02, 0.17)]
-                for (ox, oy, r) in puffs {
-                    let rr = w * 0.055 * sc * r * 2.2
-                    ctx.fill(Path(ellipseIn: R(px + ox * rr * 2 - rr, py + oy * rr + rr * 0.18,
-                                                rr * 2, rr * 1.08)), with: .color(cBelly))
-                }
-                for (ox, oy, r) in puffs {
-                    let rr = w * 0.055 * sc * r * 2.2
-                    ctx.fill(Path(ellipseIn: R(px + ox * rr * 2 - rr, py + oy * rr,
-                                                rr * 2, rr * 0.96)), with: .color(cTop))
+                let px0 = cx * w, py0 = cy * h
+                let baseW = w * 0.075 * sc
+                // Flat-ish bottom slab + 4 overlapping domes on top
+                ctx.fill(Path(ellipseIn: R(px0 - baseW, py0, baseW * 2, baseW * 0.55)),
+                         with: .color(cBelly))
+                let domes: [(Double, Double, Double)] = [
+                    (-0.55, 0.02, 0.55), (-0.15, -0.10, 0.72), (0.28, -0.04, 0.62), (0.60, 0.04, 0.45)]
+                for (ox, oy, r) in domes {
+                    let rr = baseW * r
+                    ctx.fill(Path(ellipseIn: R(px0 + ox * baseW - rr, py0 + oy * baseW - rr,
+                                                rr * 2, rr * 1.7)), with: .color(cTop))
                 }
             }
         }
@@ -207,22 +211,25 @@ private struct Painter {
 
     private func massif(_ ctx: inout GraphicsContext) {
         let baseY = horizonY + h * 0.03
+        // Crest polyline — (x fraction of w, y fraction of horizonY: 1.0 =
+        // the horizon line itself, 0.125 = near the top of the frame).
         let crest: [(Double, Double)] = [
-            (0.06, 1.00), (0.10, 0.66), (0.15, 0.50), (0.185, 0.34),
-            (0.21, 0.40), (0.235, 0.43),
-            (0.26, 0.345), (0.28, 0.295), (0.30, 0.235),
-            (0.318, 0.160),
-            (0.34, 0.205), (0.355, 0.260),
-            (0.385, 0.155), (0.40, 0.125),
-            (0.418, 0.185), (0.44, 0.24), (0.465, 0.33),
-            (0.49, 0.385), (0.515, 0.47), (0.545, 0.56),
-            (0.58, 0.70), (0.62, 0.82), (0.665, 1.0),
+            (0.06, 1.00), (0.10, 0.80), (0.15, 0.66), (0.185, 0.52),
+            (0.21, 0.56), (0.235, 0.58),
+            (0.26, 0.50), (0.28, 0.46), (0.30, 0.42),
+            (0.318, 0.30),
+            (0.34, 0.34), (0.355, 0.38),
+            (0.385, 0.28), (0.40, 0.25),
+            (0.418, 0.33), (0.44, 0.38), (0.465, 0.46),
+            (0.49, 0.50), (0.515, 0.56), (0.545, 0.62),
+            (0.58, 0.72), (0.62, 0.82), (0.665, 1.00),
         ]
+        // fy is a fraction of the horizon: y = fy * horizonY.
         func px(_ fx: Double, _ fy: Double) -> CGPoint {
-            Pt(w * fx, baseY - h * fy)
+            Pt(w * fx, fy * horizonY)
         }
 
-        // Shadow face (whole body)
+        // Shadow face (whole body first)
         var body = Path()
         body.move(to: px(crest[0].0, crest[0].1))
         for (fx, fy) in crest.dropFirst() { body.addLine(to: px(fx, fy)) }
@@ -232,63 +239,77 @@ private struct Painter {
         let shadowFace = CM.mix(s.ridgeFar, s.shadow, 0.55)
         ctx.fill(body, with: .color(shadowFace))
 
-        // Lit face (SE of apex)
+        // Lit face (right of the apex — light sits upper-right)
         let apexIdx = 13
         var lit = Path()
         lit.move(to: px(crest[apexIdx].0, crest[apexIdx].1))
         for i in (apexIdx + 1)..<crest.count { lit.addLine(to: px(crest[i].0, crest[i].1)) }
         lit.addLine(to: Pt(w * 0.70, baseY + h * 0.02))
-        lit.addLine(to: px(crest[apexIdx].0, crest[apexIdx].1))
         lit.closeSubpath()
         let litFace = variant == .day
-            ? CM.mix(s.ridgeFar, s.skyHorizon, 0.42)
-            : CM.mix(s.ridgeFar, s.skyHorizon, 0.28)
+            ? CM.mix(s.ridgeFar, s.skyHorizon, 0.30)
+            : CM.mix(s.ridgeFar, s.skyHorizon, 0.18)
         ctx.fill(lit, with: .color(litFace))
 
-        // Snow caps
-        let snow = CM.mix(palette.ink, palette.accent, 0.10)
+        // Snow cap on the true apex + west peak, with a ragged hem
+        let snow = CM.mix(palette.ink, palette.accent, 0.08)
         var cap = Path()
-        cap.move(to: px(0.318, 0.16))
-        cap.addLine(to: px(0.34, 0.205))
-        cap.addLine(to: px(0.355, 0.26))
-        cap.addLine(to: px(0.385, 0.155))
-        cap.addLine(to: px(0.40, 0.125))
-        cap.addLine(to: px(0.418, 0.185))
-        cap.addLine(to: px(0.44, 0.24))
-        cap.addLine(to: px(0.418, 0.26))
-        cap.addLine(to: px(0.385, 0.24))
-        cap.addLine(to: px(0.355, 0.32))
-        cap.addLine(to: px(0.34, 0.27))
-        cap.addLine(to: px(0.318, 0.22))
+        cap.move(to: px(0.310, 0.315))
+        cap.addLine(to: px(0.318, 0.30))
+        cap.addLine(to: px(0.332, 0.335))
+        cap.addLine(to: px(0.355, 0.38))
+        cap.addLine(to: px(0.372, 0.315))
+        cap.addLine(to: px(0.385, 0.28))
+        cap.addLine(to: px(0.400, 0.25))
+        cap.addLine(to: px(0.412, 0.30))
+        cap.addLine(to: px(0.428, 0.355))
+        cap.addLine(to: px(0.444, 0.40))
+        cap.addLine(to: px(0.428, 0.42))
+        cap.addLine(to: px(0.405, 0.375))
+        cap.addLine(to: px(0.385, 0.345))
+        cap.addLine(to: px(0.362, 0.40))
+        cap.addLine(to: px(0.340, 0.365))
+        cap.addLine(to: px(0.325, 0.34))
         cap.closeSubpath()
-        ctx.fill(cap, with: .color(CM.withOpacity(snow, 0.9)))
+        ctx.fill(cap, with: .color(CM.withOpacity(snow, 0.92)))
 
         var westCap = Path()
-        westCap.move(to: px(0.26, 0.345))
-        westCap.addLine(to: px(0.28, 0.295))
-        westCap.addLine(to: px(0.30, 0.235))
-        westCap.addLine(to: px(0.29, 0.30))
+        westCap.move(to: px(0.255, 0.52))
+        westCap.addLine(to: px(0.280, 0.46))
+        westCap.addLine(to: px(0.302, 0.425))
+        westCap.addLine(to: px(0.292, 0.475))
+        westCap.addLine(to: px(0.272, 0.52))
         westCap.closeSubpath()
-        ctx.fill(westCap, with: .color(CM.withOpacity(snow, 0.8)))
+        ctx.fill(westCap, with: .color(CM.withOpacity(snow, 0.82)))
 
-        // Rock band streaks on lit face
-        let streak = CM.mix(s.ridgeFar, s.shadow, 0.4)
-        for i in 0..<4 {
-            let t = Double(i) / 3.0
-            let x1 = w * (0.37 + t * 0.13)
-            let y1 = baseY - h * (0.30 + t * 0.14)
-            let x2 = w * (0.41 + t * 0.10)
-            let y2 = baseY - h * (0.42 + t * 0.10)
+        // Rock gullies cutting through the snow — thin dark streaks that
+        // follow the face slope downward from the apex region.
+        let gully = CM.mix(s.ridgeFar, s.shadow, 0.45)
+        for (gx0, gy0, gx1, gy1, gw) in [(0.345, 0.36, 0.375, 0.55, 0.006),
+                                          (0.395, 0.30, 0.430, 0.52, 0.007),
+                                          (0.300, 0.34, 0.318, 0.50, 0.005)] {
             var rock = Path()
-            rock.move(to: Pt(x1, y1))
-            rock.addLine(to: Pt(x2, y2))
-            rock.addLine(to: Pt(x2 + w * 0.006, y2 + h * 0.008))
-            rock.addLine(to: Pt(x1 + w * 0.006, y1 + h * 0.008))
+            rock.move(to: px(gx0, gy0))
+            rock.addLine(to: px(gx1, gy1))
+            rock.addLine(to: px(gx1 + gw, gy1 + 0.015))
+            rock.addLine(to: px(gx0 + gw, gy0 + 0.015))
             rock.closeSubpath()
-            ctx.opacity = 0.4
-            ctx.fill(rock, with: .color(streak))
+            ctx.opacity = 0.5
+            ctx.fill(rock, with: .color(gully))
         }
         ctx.opacity = 1
+
+        // Crest rim-light along the top silhouette (move FIRST — the old
+        // code never moved to the first point, drawing a stray line from
+        // the canvas corner).
+        var highlight = Path()
+        for (i, (fx, fy)) in crest.enumerated() {
+            if i == 0 { highlight.move(to: px(fx, fy)) }
+            else { highlight.addLine(to: px(fx, fy)) }
+        }
+        ctx.stroke(highlight,
+                   with: .color(CM.mix(s.ridgeFar, palette.ink, 0.35)),
+                   lineWidth: 1.2)
     }
 
     // MARK: Mist
@@ -355,10 +376,11 @@ private struct Painter {
         let topY = horizonY * 1.10
         let bottomY = h * 1.02
 
-        // Centerline: S-curve from valley to bottom edge
+        // Centerline: a real meander — the river should wander across the
+        // valley with wide S-curves, not hug a vertical stripe.
         let centerline: [(Double, Double)] = [
-            (0.52, 0.68), (0.56, 0.72), (0.48, 0.76), (0.55, 0.81),
-            (0.47, 0.86), (0.52, 0.91), (0.44, 0.96), (0.47, 1.02),
+            (0.54, 0.68), (0.63, 0.71), (0.42, 0.75), (0.58, 0.79),
+            (0.38, 0.84), (0.52, 0.89), (0.34, 0.95), (0.44, 1.02),
         ]
 
         func riverX(at t: Double) -> Double {
@@ -376,14 +398,16 @@ private struct Painter {
             max(4, h * 0.012 + t * h * 0.045)
         }
 
-        // Banks (darker soil)
+        // Banks (darker soil) — move() on the first point, or the polygon
+        // drags a line in from the canvas corner.
         var bank = Path()
         let steps = 40
         for i in 0...steps {
             let t = Double(i) / Double(steps)
             let cx = riverX(at: t), cy = riverY(at: t)
             let hw = riverHalfWidth(at: t) + w * 0.006
-            bank.addLine(to: Pt(cx - hw, cy))
+            if i == 0 { bank.move(to: Pt(cx - hw, cy)) }
+            else { bank.addLine(to: Pt(cx - hw, cy)) }
         }
         for i in stride(from: steps, through: 0, by: -1) {
             let t = Double(i) / Double(steps)
@@ -400,7 +424,9 @@ private struct Painter {
         for i in 0...steps {
             let t = Double(i) / Double(steps)
             let cx = riverX(at: t), cy = riverY(at: t)
-            water.addLine(to: Pt(cx - riverHalfWidth(at: t), cy))
+            let edge = Pt(cx - riverHalfWidth(at: t), cy)
+            if i == 0 { water.move(to: edge) }
+            else { water.addLine(to: edge) }
         }
         for i in stride(from: steps, through: 0, by: -1) {
             let t = Double(i) / Double(steps)
@@ -410,9 +436,9 @@ private struct Painter {
         water.closeSubpath()
 
         let waterTop = variant == .day
-            ? CM.mix(s.lakeGlint, s.lakeDeep, 0.3)
-            : CM.mix(s.lakeDeep, palette.accent, 0.12)
-        let waterBottom = s.lakeDeep
+            ? CM.mix(s.lakeGlint, s.lakeDeep, 0.55)
+            : CM.mix(s.lakeDeep, palette.accentPair, 0.18)
+        let waterBottom = CM.scale(s.lakeDeep, 0.8)
         let waterStops: [Gradient.Stop] = [
             .init(color: waterTop, location: 0.0),
             .init(color: CM.mix(waterTop, waterBottom, 0.5), location: 0.4),
@@ -435,61 +461,69 @@ private struct Painter {
         ctx.opacity = 1
     }
 
-    // MARK: Shoreline
+    // MARK: Meadow (ground plane under the valley)
 
-    private func shoreline(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
-        let shoreY = horizonY * 1.10
-        let shoreColor = CM.mix(s.ground, s.ridgeNear, 0.3)
-        var shore = Path()
-        shore.move(to: Pt(0, shoreY))
+    private func meadow(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
+        let meadowY = horizonY * 1.10
+        let meadowColor = CM.mix(s.ground, s.foliage, 0.25)
+        var ground = Path()
+        ground.move(to: Pt(0, meadowY))
         for x in stride(from: 0.0, through: w, by: 12) {
             let t = x / max(1, w)
             let n = ValueNoise.noise(t * 3.0, seed: seed &+ 303, octaves: 3)
-            shore.addLine(to: Pt(x, shoreY + n * h * 0.015))
+            ground.addLine(to: Pt(x, meadowY + n * h * 0.012))
         }
-        shore.addLine(to: Pt(w, h))
-        shore.addLine(to: Pt(0, h))
-        shore.closeSubpath()
-        ctx.fill(shore, with: .color(shoreColor))
+        ground.addLine(to: Pt(w, h))
+        ground.addLine(to: Pt(0, h))
+        ground.closeSubpath()
+        ctx.fill(ground, with: .color(meadowColor))
+    }
 
-        // Reeds along the bank
-        let reedColor = CM.mix(s.foliage, s.shadow, 0.2)
-        for _ in 0..<24 {
-            let x = rng.range(0, w)
-            let n = ValueNoise.noise(x / w * 3.0, seed: seed &+ 303, octaves: 3)
-            let y = shoreY + n * h * 0.015
-            let hgt = rng.range(h * 0.008, h * 0.018)
+    /// Cattail reeds along the river banks.
+    private func reeds(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
+        let topY = horizonY * 1.10
+        let reedColor = CM.mix(s.foliage, s.shadow, 0.25)
+        for _ in 0..<26 {
+            let t = rng.unit()
+            let side = rng.chance(0.5) ? -1.0 : 1.0
+            // hug the river banks: x near the river centerline ± halfwidth
+            let rx = w * (0.44 + 0.10 * t) + side * (h * 0.02 + t * h * 0.05)
+            let ry = topY + (h * 0.9 - topY) * t
+            let hgt = rng.range(h * 0.010, h * 0.022)
             var reed = Path()
-            reed.move(to: Pt(x, y))
-            reed.addLine(to: Pt(x + rng.range(-2, 2), y - hgt))
-            ctx.opacity = 0.6
-            ctx.stroke(reed, with: .color(reedColor), lineWidth: 1)
-            // seed head
-            ctx.fill(Path(ellipseIn: R(x - 1, y - hgt - 2, 2, 4)), with: .color(reedColor))
+            reed.move(to: Pt(rx, ry))
+            reed.addQuadCurve(to: Pt(rx + rng.range(-3, 3), ry - hgt),
+                              control: Pt(rx + rng.range(-4, 4), ry - hgt * 0.5))
+            ctx.opacity = 0.65
+            ctx.stroke(reed, with: .color(reedColor), lineWidth: 1.2)
+            ctx.fill(Path(ellipseIn: R(rx - 1, ry - hgt - 3, 2.2, 5)), with: .color(reedColor))
         }
         ctx.opacity = 1
     }
 
     // MARK: Forest (dense conifers)
 
-    private func forest(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
-        let baseY = h * 0.88
+    /// Shared crest for the forest ground + tree rows.
+    private func forestCrestY(_ t: Double) -> Double {
+        let n = pow(ValueNoise.noise(t * 4.4, seed: seed &+ 404, octaves: 4), 1.22)
+        let spine = 0.55 + 0.45 * sin(t * .pi)
+        return h * 0.88 - (n * 0.70 + spine * 0.30) * h * 0.22
+    }
+
+    private func forestGround(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
         let groundColor = s.ground
         var ground = Path()
-        ground.move(to: Pt(0, baseY))
+        ground.move(to: Pt(0, h * 0.88))
         for x in stride(from: 0.0, through: w, by: 10) {
-            let t = x / max(1, w)
-            let n = ValueNoise.noise(t * 4.4, seed: seed &+ 404, octaves: 4)
-            let spine = 0.55 + 0.45 * sin(t * .pi)
-            let y = baseY - (n * 0.70 + spine * 0.30) * h * 0.22
-            ground.addLine(to: Pt(x, y))
+            ground.addLine(to: Pt(x, forestCrestY(x / max(1, w))))
         }
         ground.addLine(to: Pt(w, h))
         ground.addLine(to: Pt(0, h))
         ground.closeSubpath()
         ctx.fill(ground, with: .color(groundColor))
+    }
 
-        // Conifer rows along the crest
+    private func forestTrees(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
         let treeColor = s.foliage
         let treeDark = CM.scale(treeColor, 0.6)
         let treeLit = CM.mix(treeColor, palette.ink, 0.15)
@@ -499,10 +533,7 @@ private struct Painter {
 
         for x in stride(from: -8.0, through: w + 8, by: 6) {
             if x > clearingX0 && x < clearingX1 { continue }
-            let t = x / max(1, w)
-            let n = pow(ValueNoise.noise(t * 4.4, seed: seed &+ 404, octaves: 4), 1.22)
-            let spine = 0.55 + 0.45 * sin(t * .pi)
-            let y = baseY - (n * 0.70 + spine * 0.30) * h * 0.22
+            let y = forestCrestY(x / max(1, w))
 
             guard rng.chance(0.65) else { continue }
             let th = h * rng.range(0.018, 0.038)
@@ -604,34 +635,38 @@ private struct Painter {
     }
 
     private func trail(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
-        let startX = w * 0.42, endX = w * 0.585
-        let startY = h * 1.02, endY = horizonY * 1.18
+        // A winding dirt path from the bottom edge up to the cabin door —
+        // smooth curves, not switchback zigzags.
+        let startX = w * 0.40, startY = h * 1.03
+        let endX = w * 0.60, endY = horizonY * 1.17
 
         var path = Path()
-        let pts: [(Double, Double)] = [
-            (startX, startY), (startX + w * 0.05, startY - h * 0.06),
-            (startX - w * 0.02, startY - h * 0.12), (endX - w * 0.03, endY + h * 0.04),
-            (endX, endY),
-        ]
-        path.move(to: Pt(pts[0].0, pts[0].1))
-        for (px, py) in pts.dropFirst() { path.addLine(to: Pt(px, py)) }
+        path.move(to: Pt(startX, startY))
+        path.addQuadCurve(to: Pt(w * 0.50, h * 0.90),
+                          control: Pt(w * 0.47, h * 0.97))
+        path.addQuadCurve(to: Pt(w * 0.55, h * 0.83),
+                          control: Pt(w * 0.53, h * 0.86))
+        path.addQuadCurve(to: Pt(endX, endY),
+                          control: Pt(w * 0.56, h * 0.80))
 
-        let trailColor = CM.mix(s.ground, palette.ink, 0.28)
-        ctx.opacity = 0.5
-        ctx.stroke(path, with: .color(trailColor), lineWidth: max(2, w * 0.004))
+        let trailColor = CM.mix(s.ground, palette.ink, 0.30)
+        ctx.opacity = 0.55
+        ctx.stroke(path, with: .color(trailColor),
+                   style: StrokeStyle(lineWidth: max(3, w * 0.004),
+                                      lineCap: .round, lineJoin: .round))
         ctx.opacity = 1
 
-        // Trail stones
-        for (px, py) in pts {
-            if rng.chance(0.7) {
-                let stoneR = rng.range(1, 3)
-                ctx.opacity = 0.4
-                ctx.fill(Path(ellipseIn: R(px + rng.range(-5, 5), py + rng.range(-3, 3),
-                                           stoneR, stoneR * 0.7)),
-                         with: .color(CM.mix(trailColor, s.shadow, 0.5)))
-                ctx.opacity = 1
-            }
+        // Trail stones scattered near the path
+        for _ in 0..<10 {
+            let t = rng.unit()
+            let sx = startX + (endX - startX) * t + rng.range(-w * 0.02, w * 0.02)
+            let sy = startY + (endY - startY) * t + rng.range(-h * 0.01, h * 0.01)
+            let stoneR = rng.range(1, 2.6)
+            ctx.opacity = 0.35
+            ctx.fill(Path(ellipseIn: R(sx, sy, stoneR, stoneR * 0.7)),
+                     with: .color(CM.mix(trailColor, s.shadow, 0.5)))
         }
+        ctx.opacity = 1
     }
 
     // MARK: Hero pines (edge framing)

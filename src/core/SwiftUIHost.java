@@ -29,6 +29,7 @@ public final class SwiftUIHost {
     private static MethodHandle launchHandle;
     private static MethodHandle setStateHandle;
     private static MethodHandle snapshotHandle;
+    private static MethodHandle pumpHandle;
     private static MethodHandle setHandlerCall;
     private static volatile ActionHandler actionHandler;
 
@@ -59,6 +60,7 @@ public final class SwiftUIHost {
                 var launchSeg = lookup.find("bigm_ui_launch").orElse(null);
                 var setStateSeg = lookup.find("bigm_ui_set_state").orElse(null);
                 var snapshotSeg = lookup.find("bigm_ui_snapshot").orElse(null);
+                var pumpSeg = lookup.find("bigm_ui_pump").orElse(null);
                 var setHandlerSeg = lookup.find("bigm_ui_set_action_handler").orElse(null);
                 if (launchSeg == null || setStateSeg == null) continue;
 
@@ -68,7 +70,12 @@ public final class SwiftUIHost {
                         FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
                 if (snapshotSeg != null) {
                     snapshotHandle = linker.downcallHandle(snapshotSeg,
-                            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+                            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+                }
+                if (pumpSeg != null) {
+                    pumpHandle = linker.downcallHandle(pumpSeg,
+                            FunctionDescriptor.ofVoid(ValueLayout.JAVA_DOUBLE));
                 }
                 if (setHandlerSeg != null) {
                     setHandlerCall = linker.downcallHandle(setHandlerSeg,
@@ -112,14 +119,29 @@ public final class SwiftUIHost {
     }
 
     /**
-     * Render the current scene to a PNG for verification (offscreen, no
-     * screen-recording perms needed). Returns true on success.
+     * Pumps the AppKit main run loop for N seconds — lets queued state
+     * pushes land without starting the full NSApplication.run loop (used
+     * by the snapshot harness; harmless elsewhere).
      */
-    public static boolean snapshot(String path) {
+    public static void pump(double seconds) {
+        if (pumpHandle == null) return;
+        try {
+            pumpHandle.invoke(seconds);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * Render the current face to a PNG for verification (offscreen, no
+     * screen-recording perms needed). fullUI=true renders the whole face
+     * (sidebar + cards); false renders the bare scene. Returns true on
+     * success.
+     */
+    public static boolean snapshot(String path, boolean fullUI) {
         if (snapshotHandle == null) return false;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment cString = arena.allocateFrom(path, StandardCharsets.UTF_8);
-            int result = (int) snapshotHandle.invoke(cString);
+            int result = (int) snapshotHandle.invoke(cString, fullUI ? 1 : 0);
             return result == 0;
         } catch (Throwable ignored) {
             return false;

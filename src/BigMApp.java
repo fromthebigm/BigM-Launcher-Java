@@ -75,17 +75,20 @@ public final class BigMApp {
                 if (core.SwiftUIHost.install(controller::handleAction)) {
                     System.err.println("[bigm] SwiftUI face loaded — taking over");
 
-                    // --swift-shot renders the scene to a PNG and exits
-                    // (visual verification without screen-recording perms).
+                    // --swift-shot [path] [full] renders the face to a PNG
+                    // and exits (visual verification without screen perms).
+                    // "full" renders the whole UI (sidebar + cards + scene).
                     int shotAt = argList.indexOf("--swift-shot");
                     if (shotAt >= 0) {
                         controller.start();
-                        // Wait for state to settle, then snapshot
-                        Thread.sleep(2000);
+                        // Pump the AppKit run loop so the queued state
+                        // pushes actually decode (no NSApp.run here).
+                        core.SwiftUIHost.pump(4.0);
                         String path = shotAt + 1 < argList.size()
                                 ? argList.get(shotAt + 1)
                                 : "/tmp/bigm-swift-scene.png";
-                        boolean ok = core.SwiftUIHost.snapshot(path);
+                        boolean full = argList.contains("--swift-full");
+                        boolean ok = core.SwiftUIHost.snapshot(path, full);
                         System.out.println("swift-shot: " + (ok ? "wrote " + path : "FAILED"));
                         System.exit(ok ? 0 : 2);
                         return;

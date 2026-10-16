@@ -77,6 +77,13 @@ public final class JsonOut {
 
     public JsonOut beginElement() { appendComma(); out.append('{'); return this; }
 
+    /** A bare string element inside an array (["a","b"]). */
+    public JsonOut stringElement(String value) {
+        appendComma();
+        string(value);
+        return this;
+    }
+
     public JsonOut closeArray() {
         trimComma();
         out.append(']');

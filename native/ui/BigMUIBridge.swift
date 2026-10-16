@@ -35,6 +35,13 @@ struct FilterModel: Codable, Identifiable {
     let count: Int
 }
 
+/// Settings values the sheets read (theme, variant, install folder…).
+struct SettingsModel: Codable {
+    let themeKey: String
+    let variant: String
+    let defaultInstallFolder: String?
+}
+
 struct StateSnapshot: Codable {
     let windowTitle: String
     let themeKey: String
@@ -48,6 +55,8 @@ struct StateSnapshot: Codable {
     let selfUpdateTag: String?
     let selfUpdateMessage: String?
     let runningCount: Int
+    let settings: SettingsModel?
+    let events: [String]?
 }
 
 // MARK: - Action handler (C function pointer, registered by Java)
@@ -59,6 +68,8 @@ private var actionHandler: ActionCallback?
 
 final class StateStore: ObservableObject {
     @Published var snapshot: StateSnapshot?
+    @Published var activeSheet: SheetKind?
+    @Published var showGate: Bool = false
 
     var palette: ThemePalette {
         ThemePalette.forKey(snapshot?.themeKey)
@@ -82,38 +93,74 @@ struct RootView: View {
     @State private var searchText = ""
 
     var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: 0) {
-                // Sidebar
-                SidebarView()
-                    .frame(width: 230)
-                    .background(
-                        sidebarBackground
-                    )
-
-                // Main content
-                ScrollView(.vertical, showsIndicators: true) {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 260, maximum: 340),
-                                                 spacing: 14)],
-                              spacing: 14) {
-                        ForEach(filteredCards) { card in
-                            AppCardView(card: card,
-                                        palette: store.palette,
-                                        variant: store.variant) { action, id in
-                                store.dispatch(action, id: id)
-                            }
-                        }
-                    }
-                    .padding(20)
-                }
-            }
-        }
-        .background(
+        ZStack {
             // The Nightwood scene — renders ONCE per size/theme/variant
             NightwoodScene(palette: store.palette, variant: store.variant)
                 .ignoresSafeArea()
-        )
+
+            if store.showGate {
+                GateView()
+            } else {
+                HStack(spacing: 0) {
+                    SidebarView()
+                        .frame(width: 230)
+                        .background(sidebarBackground)
+
+                    VStack(spacing: 0) {
+                        // Search field
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 12))
+                                .foregroundColor(store.palette.chrome(store.variant).textMuted)
+                            TextField("Search library", text: $searchText)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12, design: .rounded))
+                                .foregroundColor(store.palette.chrome(store.variant).textPrimary)
+                                .tint(store.palette.chrome(store.variant).textPrimary)
+                                .accentColor(store.palette.chrome(store.variant).textPrimary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(
+                            Capsule()
+                                .fill(store.palette.chrome(store.variant).cardFill.opacity(0.95))
+                                .overlay(Capsule().strokeBorder(
+                                    store.palette.chrome(store.variant).separator.opacity(0.6),
+                                    lineWidth: 0.8))
+                        )
+                        .frame(width: 230)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 14)
+
+                        ScrollView(.vertical, showsIndicators: true) {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 270, maximum: 360),
+                                                         spacing: 16)],
+                                      spacing: 16) {
+                                ForEach(filteredCards) { card in
+                                    AppCardView(card: card,
+                                                palette: store.palette,
+                                                variant: store.variant) { action, id in
+                                        store.dispatch(action, id: id)
+                                    }
+                                }
+                            }
+                            .padding(20)
+                        }
+                    }
+                }
+            }
+        }
         .navigationTitle(store.snapshot?.windowTitle ?? "BigM")
+        .sheet(item: $store.activeSheet) { kind in
+            switch kind {
+            case .updates: UpdatesSheet()
+            case .customize: CustomizeSheet()
+            case .settings: SettingsSheet()
+            case .diagnostics: DiagnosticsSheet()
+            case .getApps: GetAppsSheet()
+            }
+        }
     }
 
     private var filteredCards: [CardModel] {
@@ -205,37 +252,37 @@ struct SidebarView: View {
 
             Spacer()
 
-            // Action rows
+            // Action rows — every row opens its real sheet
             VStack(spacing: 2) {
                 SidebarActionRow(icon: "arrow.triangle.2.circlepath",
                                  title: updateTitle,
                                  alert: store.snapshot?.selfUpdateAvailable == true,
                                  palette: store.palette, variant: store.variant) {
-                    store.dispatch("openSheet", id: "updates")
+                    store.activeSheet = .updates
                 }
                 SidebarActionRow(icon: "plus.viewfinder",
-                                 title: "Scan a Folder",
+                                 title: "Get Apps",
                                  alert: false,
                                  palette: store.palette, variant: store.variant) {
-                    store.dispatch("scanFolder", id: "")
+                    store.activeSheet = .getApps
                 }
                 SidebarActionRow(icon: "paintbrush",
                                  title: "Customize",
                                  alert: false,
                                  palette: store.palette, variant: store.variant) {
-                    store.dispatch("openSheet", id: "customize")
+                    store.activeSheet = .customize
                 }
                 SidebarActionRow(icon: "gearshape",
                                  title: "Settings",
                                  alert: false,
                                  palette: store.palette, variant: store.variant) {
-                    store.dispatch("openSheet", id: "settings")
+                    store.activeSheet = .settings
                 }
                 SidebarActionRow(icon: "stethoscope",
                                  title: "Diagnostics",
                                  alert: false,
                                  palette: store.palette, variant: store.variant) {
-                    store.dispatch("openSheet", id: "diagnostics")
+                    store.activeSheet = .diagnostics
                 }
             }
             .padding(.horizontal, 10)
@@ -399,6 +446,9 @@ struct GateView: View {
     private func submit() {
         guard !key.isEmpty else { return }
         store.dispatch("activate", id: key)
+        // Optimistically hide the gate; Java pushes a fresh state which
+        // re-shows it if the key failed.
+        store.showGate = false
     }
 }
 
@@ -413,62 +463,90 @@ public func bigmUISetActionHandler(_ handler: @escaping ActionCallback) {
 public func bigmUISetState(_ jsonPtr: UnsafePointer<CChar>?) {
     guard let ptr = jsonPtr else { return }
     let json = String(cString: ptr)
-    DispatchQueue.main.async {
-        if let data = json.data(using: .utf8),
-           let snapshot = try? JSONDecoder().decode(StateSnapshot.self, from: data) {
-            sharedStore.snapshot = snapshot
-        }
+    // Apply synchronously when already on the main thread (snapshot
+    // harness); hop otherwise (Java worker threads in production). A pure
+    // async hop starves when no run loop is pumping.
+    if Thread.isMainThread {
+        applyStateJSON(json)
+    } else {
+        DispatchQueue.main.async { applyStateJSON(json) }
+    }
+}
+
+private func applyStateJSON(_ json: String) {
+    if let data = json.data(using: .utf8),
+       let snapshot = try? JSONDecoder().decode(StateSnapshot.self, from: data) {
+        sharedStore.snapshot = snapshot
+        sharedStore.showGate = !snapshot.activated
+    }
+}
+
+/// Pumps the main run loop for N seconds — the snapshot harness uses this
+/// so queued state pushes land before rendering. Harmless in production.
+@_cdecl("bigm_ui_pump")
+public func bigmUIPump(_ seconds: Double) {
+    MainActor.assumeIsolated {
+        RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
 }
 
 @_cdecl("bigm_ui_launch")
 public func bigmUILaunch() -> Int32 {
-    // Must be called on the main thread (Java runs with -XstartOnFirstThread)
-    DispatchQueue.main.async {
-        let app = NSApplication.shared
-        app.setActivationPolicy(.regular)
+    // Java runs with -XstartOnFirstThread, so this call arrives ON the
+    // AppKit main thread (thread 0). Set up synchronously, then hand the
+    // thread to NSApplication.run() — which blocks forever running the
+    // event loop. That blocking call is what keeps the JVM alive and the
+    // window responsive; without it the async-queued setup never ran and
+    // the process exited instantly (the "launcher aint running" bug).
+    let app = NSApplication.shared
+    app.setActivationPolicy(.regular)
 
-        // Dark appearance — no system default gray anywhere
-        app.appearance = NSAppearance(named: .darkAqua)
+    // Dark appearance — no system default gray anywhere
+    app.appearance = NSAppearance(named: .darkAqua)
 
-        // Main menu (bare minimum: app name + Quit)
-        let mainMenu = NSMenu()
-        let appMenuItem = NSMenuItem()
-        appMenuItem.submenu = NSMenu()
-        appMenuItem.submenu?.addItem(withTitle: "Quit",
-                                      action: #selector(NSApplication.terminate(_:)),
-                                      keyEquivalent: "q")
-        mainMenu.addItem(appMenuItem)
-        app.mainMenu = mainMenu
+    // Main menu (bare minimum: app name + Quit)
+    let mainMenu = NSMenu()
+    let appMenuItem = NSMenuItem()
+    appMenuItem.submenu = NSMenu()
+    appMenuItem.submenu?.addItem(withTitle: "Quit",
+                                  action: #selector(NSApplication.terminate(_:)),
+                                  keyEquivalent: "q")
+    mainMenu.addItem(appMenuItem)
+    app.mainMenu = mainMenu
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1180, height: 760),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered, defer: false)
-        window.title = "BigM"
-        window.minSize = NSSize(width: 900, height: 560)
-        window.backgroundColor = NSColor(srgbRed: 0.039, green: 0.051, blue: 0.047, alpha: 1.0)
-        window.appearance = NSAppearance(named: .darkAqua)
+    let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 1180, height: 760),
+        styleMask: [.titled, .closable, .miniaturizable, .resizable],
+        backing: .buffered, defer: false)
+    window.title = "BigM"
+    window.minSize = NSSize(width: 900, height: 560)
+    window.backgroundColor = NSColor(srgbRed: 0.039, green: 0.051, blue: 0.047, alpha: 1.0)
+    window.appearance = NSAppearance(named: .darkAqua)
+    window.isReleasedWhenClosed = false
 
-        let rootView = RootView().environmentObject(sharedStore)
-        window.contentView = NSHostingView(rootView: rootView)
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        app.activate(ignoringOtherApps: true)
-    }
+    let rootView = RootView().environmentObject(sharedStore)
+    window.contentView = NSHostingView(rootView: rootView)
+    window.center()
+    window.makeKeyAndOrderFront(nil)
+    app.activate(ignoringOtherApps: true)
+
+    // Own the run loop until the user quits. Never returns.
+    app.run()
     return 0
 }
 
 @_cdecl("bigm_ui_snapshot")
-public func bigmUISnapshot(_ pathPtr: UnsafePointer<CChar>?) -> Int32 {
+public func bigmUISnapshot(_ pathPtr: UnsafePointer<CChar>?, _ fullUI: Int32) -> Int32 {
     guard let path = pathPtr.map({ String(cString: $0) }) else { return 1 }
     // We're on the main thread (Java -XstartOnFirstThread) — render directly.
-    // ImageRenderer requires MainActor; assumeIsolated is safe here because
-    // this function is only ever called from the Java main thread.
+    // fullUI != 0 renders the entire face (sidebar + cards over the scene);
+    // 0 renders the scene alone.
     let result: Int32 = MainActor.assumeIsolated {
-        let scene = NightwoodScene(palette: sharedStore.palette,
-                                    variant: sharedStore.variant)
-        let renderer = ImageRenderer(content: scene.frame(width: 1600, height: 1000))
+        let content = fullUI != 0
+            ? AnyView(RootView().environmentObject(sharedStore))
+            : AnyView(NightwoodScene(palette: sharedStore.palette,
+                                      variant: sharedStore.variant))
+        let renderer = ImageRenderer(content: content.frame(width: 1600, height: 1000))
         renderer.scale = 1.0
         if let image = renderer.nsImage,
            let tiff = image.tiffRepresentation,

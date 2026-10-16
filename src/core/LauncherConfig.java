@@ -93,6 +93,11 @@ public final class LauncherConfig {
     public String backgroundStyle() { return props.getProperty("ui.backgroundStyle", "glass"); }
     public void setBackgroundStyle(String style) { props.setProperty("ui.backgroundStyle", style); save(); }
 
+    /** auto | day | night — the scenery light regime. Auto follows the
+     *  host clock (day 07:00–19:00, night otherwise); day/night pin it. */
+    public String uiVariant() { return props.getProperty("ui.variant", "auto"); }
+    public void setUiVariant(String variant) { props.setProperty("ui.variant", variant); save(); }
+
     /** Per-app screenshot/screen-share protection (default ON, matching
      *  every hardened launcher's built-in default). */
     public boolean captureProtection(String appId) {
