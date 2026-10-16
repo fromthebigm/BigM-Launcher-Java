@@ -70,7 +70,7 @@ private struct Painter {
         river(&ctx, &rng)
         reeds(&ctx, &rng)
         forestTrees(&ctx, &rng)
-        cabin(&ctx)
+        manor(&ctx)
         trail(&ctx, &rng)
         heroes(&ctx, &rng)
         airborne(&ctx, &rng)
@@ -528,8 +528,8 @@ private struct Painter {
         let treeDark = CM.scale(treeColor, 0.6)
         let treeLit = CM.mix(treeColor, palette.ink, 0.15)
 
-        // Skip a clearing where the cabin sits
-        let clearingX0 = w * 0.55, clearingX1 = w * 0.70
+        // Skip a clearing where the manor sits (wider for the estate)
+        let clearingX0 = w * 0.13, clearingX1 = w * 0.48
 
         for x in stride(from: -8.0, through: w + 8, by: 6) {
             if x > clearingX0 && x < clearingX1 { continue }
@@ -582,72 +582,223 @@ private struct Painter {
         return p
     }
 
-    // MARK: Cabin + Trail
+    // MARK: The Manor — a gothic estate on the hill
+    //
+    // Inspired by the Roswaal mansion aesthetic: a grand multi-winged
+    // house with steep pitched roofs, a central spire, arched windows
+    // glowing warm at night, set on a rise with the trail approaching
+    // its gate. The river winds past on the right; the manor owns the
+    // left bank.
 
-    private func cabin(_ ctx: inout GraphicsContext) {
-        let cx = w * 0.615, cy = horizonY * 1.18
-        let cw = w * 0.035, ch = h * 0.025
+    private func manor(_ ctx: inout GraphicsContext) {
+        // Manor sits on a rise on the left bank
+        let mx = w * 0.28, my = horizonY * 1.16
+        let mw = w * 0.10          // main wing width
+        let mh = h * 0.055         // main wing wall height
 
-        // Cast shadow
+        // Hill mound under the manor
+        let hillColor = CM.mix(s.ground, s.foliage, 0.35)
+        var hill = Path()
+        hill.move(to: Pt(mx - mw * 2.2, my + mh * 0.6))
+        hill.addQuadCurve(to: Pt(mx, my - mh * 0.15),
+                          control: Pt(mx - mw * 1.1, my - mh * 0.2))
+        hill.addQuadCurve(to: Pt(mx + mw * 2.2, my + mh * 0.6),
+                          control: Pt(mx + mw * 1.1, my - mh * 0.2))
+        hill.addLine(to: Pt(mx + mw * 2.4, my + mh * 1.2))
+        hill.addLine(to: Pt(mx - mw * 2.4, my + mh * 1.2))
+        hill.closeSubpath()
+        ctx.fill(hill, with: .color(hillColor))
+
+        // Cast shadow — light from upper-right, shadow falls left
         var sh = Path()
-        sh.move(to: Pt(cx - cw, cy + ch * 0.3))
-        sh.addLine(to: Pt(cx + cw, cy + ch * 0.3))
-        sh.addLine(to: Pt(cx - cw * 1.2, cy + ch * 0.6))
+        sh.move(to: Pt(mx - mw, my + mh))
+        sh.addLine(to: Pt(mx + mw, my + mh))
+        sh.addLine(to: Pt(mx - mw * 1.8, my + mh * 1.3))
         sh.closeSubpath()
-        ctx.opacity = 0.25
+        ctx.opacity = 0.3
         ctx.fill(sh, with: .color(s.shadow))
         ctx.opacity = 1
 
-        // Walls
-        let wall = CM.mix(s.ground, palette.ink, 0.12)
-        ctx.fill(Path(R(cx - cw, cy, cw * 2, ch)), with: .color(wall))
+        let wallDay = CM.mix(CM.hex(0x8A8F98), s.skyHorizon, 0.35)
+        let wallNight = CM.mix(CM.hex(0x2A3040), s.skyTop, 0.3)
+        let wall = variant == .day ? wallDay : wallNight
+        let roofDay = CM.hex(0x3A3844)
+        let roofNight = CM.hex(0x1A1822)
+        let roof = variant == .day ? roofDay : roofNight
+        let timber = CM.mix(roof, s.shadow, 0.4)
 
-        // Roof (triangle)
-        var roof = Path()
-        roof.move(to: Pt(cx - cw * 1.15, cy))
-        roof.addLine(to: Pt(cx, cy - ch * 0.6))
-        roof.addLine(to: Pt(cx + cw * 1.15, cy))
-        roof.closeSubpath()
-        let roofColor = CM.mix(wall, s.shadow, 0.4)
-        ctx.fill(roof, with: .color(roofColor))
+        // ── Left wing (smaller, two stories) ──
+        let lw = mw * 0.55, lh = mh * 0.7
+        let lx = mx - mw - lw * 0.4
+        let ly = my + mh - lh
+        // walls
+        ctx.fill(Path(R(lx, ly, lw, lh)), with: .color(wall))
+        // roof (steep pitched)
+        var lRoof = Path()
+        lRoof.move(to: Pt(lx - lw * 0.12, ly))
+        lRoof.addLine(to: Pt(lx + lw / 2, ly - lh * 0.55))
+        lRoof.addLine(to: Pt(lx + lw * 1.12, ly))
+        lRoof.closeSubpath()
+        ctx.fill(lRoof, with: .color(roof))
+        // windows
+        paintManorWindows(&ctx, x: lx, y: ly, w: lw, h: lh, cols: 2, floorH: lh / 2)
 
-        // Window — warm glow at night, neutral at day
-        let winColor = variant == .night
-            ? CM.mix(palette.accent, palette.ink, 0.3)
-            : CM.mix(palette.ink, s.skyHorizon, 0.5)
-        let winW = cw * 0.30, winH = ch * 0.45
-        let winX = cx - winW / 2, winY = cy + ch * 0.25
-        ctx.fill(Path(R(winX, winY, winW, winH)), with: .color(winColor))
+        // ── Main wing (grand, three stories) ──
+        // walls
+        ctx.fill(Path(R(mx - mw / 2, my - mh * 0.3, mw, mh * 1.3)), with: .color(wall))
+        // timber framing lines (gothic half-timber)
+        ctx.opacity = 0.5
+        for fy in 0..<3 {
+            let y = my - mh * 0.3 + Double(fy) * mh * 0.43
+            ctx.stroke(Path(R(mx - mw / 2, y, mw, 0.5)), with: .color(timber), lineWidth: 1)
+        }
+        ctx.stroke(Path(R(mx - 0.5, my - mh * 0.3, 1, mh * 1.3)), with: .color(timber), lineWidth: 1)
+        ctx.opacity = 1
+        // main roof (very steep, gothic pitch)
+        var mRoof = Path()
+        mRoof.move(to: Pt(mx - mw * 0.62, my - mh * 0.3))
+        mRoof.addLine(to: Pt(mx, my - mh * 1.05))
+        mRoof.addLine(to: Pt(mx + mw * 0.62, my - mh * 0.3))
+        mRoof.closeSubpath()
+        ctx.fill(mRoof, with: .color(roof))
+        // roof edge highlight
+        ctx.stroke(mRoof, with: .color(CM.mix(roof, palette.ink, 0.15)),
+                   style: StrokeStyle(lineWidth: 1, lineJoin: .round))
+        // windows (3 floors, 4 columns)
+        paintManorWindows(&ctx, x: mx - mw / 2, y: my - mh * 0.25,
+                          w: mw, h: mh * 1.2, cols: 4, floorH: mh * 0.40)
+
+        // ── Central tower + spire ──
+        let tw = mw * 0.28, th = mh * 1.8
+        let tx = mx + mw * 0.35
+        // tower walls
+        ctx.fill(Path(R(tx, my - th, tw, th + mh * 0.4)), with: .color(wall))
+        // spire (pointed gothic)
+        var spire = Path()
+        spire.move(to: Pt(tx - tw * 0.65, my - th))
+        spire.addLine(to: Pt(tx + tw / 2, my - th - mh * 0.75))
+        spire.addLine(to: Pt(tx + tw * 1.65, my - th))
+        spire.closeSubpath()
+        ctx.fill(spire, with: .color(roof))
+        // spire tip finial
+        ctx.stroke(Path(R(tx + tw / 2, my - th - mh * 0.75, 1, mh * 0.12)),
+                   with: .color(CM.mix(roof, palette.ink, 0.2)), lineWidth: 1.5)
+        // tower windows (one per floor, arched)
+        for fy in 0..<3 {
+            let wy = my - th + Double(fy) * th / 3.5 + th * 0.1
+            paintArchedWindow(&ctx, x: tx + tw * 0.25, y: wy,
+                              w: tw * 0.5, h: th * 0.14)
+        }
+
+        // ── Right wing (small, connects toward the river) ──
+        let rw = mw * 0.4, rh = mh * 0.55
+        let rx = mx + mw / 2
+        let ry = my + mh - rh
+        ctx.fill(Path(R(rx, ry, rw, rh)), with: .color(wall))
+        var rRoof = Path()
+        rRoof.move(to: Pt(rx - rw * 0.12, ry))
+        rRoof.addLine(to: Pt(rx + rw / 2, ry - rh * 0.5))
+        rRoof.addLine(to: Pt(rx + rw * 1.12, ry))
+        rRoof.closeSubpath()
+        ctx.fill(rRoof, with: .color(roof))
+        paintManorWindows(&ctx, x: rx, y: ry, w: rw, h: rh, cols: 2, floorH: rh)
+
+        // ── Chimneys (two tall gothic stacks) ──
+        for (cx, cw, ch) in [(mx - mw * 0.30, mw * 0.06, mh * 0.55),
+                              (mx + mw * 0.25, mw * 0.05, mh * 0.70)] {
+            let cyy = my - mh * 0.3 - ch - mh * 0.5
+            ctx.fill(Path(R(cx, cyy, cw, ch + mh * 0.5)), with: .color(CM.scale(wall, 0.6)))
+            // cap
+            ctx.fill(Path(R(cx - cw * 0.2, cyy, cw * 1.4, mh * 0.05)), with: .color(roof))
+            // Day: smoke wisp; night: thin smoke barely visible
+            if variant == .day {
+                for (i, radius) in [(0, 3.0), (1, 4.5), (2, 6.0)].enumerated() {
+                    let smokeX = cx + cw / 2 + Double(i) * 3
+                    let smokeY = cyy - Double(i) * 5
+                    ctx.opacity = 0.08 - Double(i) * 0.02
+                    ctx.fill(Path(ellipseIn: R(smokeX - radius.1, smokeY - radius.1,
+                                               radius.1 * 2, radius.1 * 2)),
+                             with: .color(palette.ink))
+                }
+                ctx.opacity = 1
+            }
+        }
+
+        // ── Arched front door ──
+        let doorW = mw * 0.12, doorH = mh * 0.35
+        let doorX = mx - mw * 0.06, doorY = my + mh * 0.65
+        var door = Path()
+        door.move(to: Pt(doorX, doorY + doorH))
+        door.addLine(to: Pt(doorX, doorY + doorH * 0.3))
+        door.addQuadCurve(to: Pt(doorX + doorW, doorY + doorH * 0.3),
+                          control: Pt(doorX + doorW / 2, doorY - doorH * 0.1))
+        door.addLine(to: Pt(doorX + doorW, doorY + doorH))
+        door.closeSubpath()
+        ctx.fill(door, with: .color(timber))
+        // door glow at night
         if variant == .night {
-            // Window glow halo
-            ctx.opacity = 0.15
-            let glowR = cw * 1.2
-            ctx.fill(Path(ellipseIn: R(winX + winW / 2 - glowR,
-                                       winY + winH / 2 - glowR, glowR * 2, glowR * 2)),
+            ctx.opacity = 0.35
+            ctx.fill(Path(ellipseIn: R(doorX - doorW * 0.5, doorY + doorH * 0.1,
+                                        doorW * 2, doorH * 1.5)),
                      with: .color(palette.accent))
             ctx.opacity = 1
         }
+    }
 
-        // Chimney
-        let chimW = cw * 0.12, chimH = ch * 0.5
-        ctx.fill(Path(R(cx + cw * 0.5, cy - chimH - ch * 0.3, chimW, chimH)),
-                 with: .color(CM.scale(wall, 0.7)))
+    /// A grid of gothic-arched windows for a manor wing.
+    private func paintManorWindows(_ ctx: inout GraphicsContext,
+                                   x: Double, y: Double, w: Double, h: Double,
+                                   cols: Int, floorH: Double) {
+        let winW = w / Double(cols) * 0.5
+        let gap = w / Double(cols)
+        for floor in 0..<max(1, Int(h / floorH)) {
+            let fy = y + Double(floor) * floorH + floorH * 0.2
+            for c in 0..<cols {
+                let wx = x + Double(c) * gap + gap * 0.25
+                paintArchedWindow(&ctx, x: wx, y: fy, w: winW, h: floorH * 0.45)
+            }
+        }
+    }
+
+    /// One gothic-arched window — warm amber at night, glass at day.
+    private func paintArchedWindow(_ ctx: inout GraphicsContext,
+                                    x: Double, y: Double, w: Double, h: Double) {
+        var win = Path()
+        win.move(to: Pt(x, y + h))
+        win.addLine(to: Pt(x, y + h * 0.35))
+        win.addQuadCurve(to: Pt(x + w, y + h * 0.35),
+                         control: Pt(x + w / 2, y - h * 0.15))
+        win.addLine(to: Pt(x + w, y + h))
+        win.closeSubpath()
+        let lit = variant == .night
+        let glass = lit
+            ? CM.mix(palette.accent, palette.ink, 0.25)
+            : CM.mix(s.skyHorizon, palette.ink, 0.45)
+        ctx.fill(win, with: .color(glass))
+        if lit {
+            // Glow halo around each lit window
+            ctx.opacity = 0.12
+            ctx.fill(Path(ellipseIn: R(x - w * 0.5, y - h * 0.3, w * 2, h * 2)),
+                     with: .color(palette.accent))
+            ctx.opacity = 1
+        }
     }
 
     private func trail(_ ctx: inout GraphicsContext, _ rng: inout SplitMix64) {
-        // A winding dirt path from the bottom edge up to the cabin door —
-        // smooth curves, not switchback zigzags.
-        let startX = w * 0.40, startY = h * 1.03
-        let endX = w * 0.60, endY = horizonY * 1.17
+        // A winding dirt path from the bottom edge up to the manor's front
+        // gate — the manor sits on the LEFT bank hill, so the trail
+        // approaches from the bottom-left, curving through the meadow.
+        let startX = w * 0.34, startY = h * 1.03
+        let endX = w * 0.27, endY = horizonY * 1.22
 
         var path = Path()
         path.move(to: Pt(startX, startY))
-        path.addQuadCurve(to: Pt(w * 0.50, h * 0.90),
-                          control: Pt(w * 0.47, h * 0.97))
-        path.addQuadCurve(to: Pt(w * 0.55, h * 0.83),
-                          control: Pt(w * 0.53, h * 0.86))
+        path.addQuadCurve(to: Pt(w * 0.25, h * 0.88),
+                          control: Pt(w * 0.30, h * 0.96))
+        path.addQuadCurve(to: Pt(w * 0.32, h * 0.80),
+                          control: Pt(w * 0.21, h * 0.83))
         path.addQuadCurve(to: Pt(endX, endY),
-                          control: Pt(w * 0.56, h * 0.80))
+                          control: Pt(w * 0.29, h * 0.74))
 
         let trailColor = CM.mix(s.ground, palette.ink, 0.30)
         ctx.opacity = 0.55

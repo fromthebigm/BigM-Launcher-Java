@@ -36,6 +36,15 @@ enum CM {
         return Color(.sRGB, red: v[0], green: v[1], blue: v[2], opacity: o)
     }
 
+    /// Hex → Color (RRGGBB).
+    static func hex(_ value: UInt32) -> Color {
+        Color(.sRGB,
+              red: Double((value >> 16) & 0xFF) / 255.0,
+              green: Double((value >> 8) & 0xFF) / 255.0,
+              blue: Double(value & 0xFF) / 255.0,
+              opacity: 1.0)
+    }
+
     static func rgba(_ c: Color) -> [Double] {
         let ns = NSColor(c).usingColorSpace(.sRGB) ?? NSColor(c)
         return [Double(ns.redComponent), Double(ns.greenComponent),
