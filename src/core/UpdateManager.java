@@ -62,13 +62,16 @@ public final class UpdateManager {
 
     private void check(Path ownRoot) {
         workers.execute(() -> {
-            state.setSelf(false, "", "checking self…");
+            // Self-channel: the mirror release under BigM-Launcher (tag
+            // java-latest, whose name carries the real version) answers
+            // with the embedded token alone.
+            //
+            // NOTE: we do NOT clear the banner during re-checks — the old
+            // code set selfAvailable=false at the start of every check,
+            // which made the banner flicker off and back on during each
+            // periodic sweep. The banner holds its last known state and
+            // only changes when the check actually completes.
             try {
-                // Self-channel: the Java launcher's own repo first; when the
-                // token in play can't see it (the org's fine-grained PATs
-                // are per-repo), the mirror release under BigM-Launcher
-                // (tag java-latest, name carries the real version) answers
-                // with the embedded token alone.
                 GitHubUpdates.Release release = selfRelease();
                 // The installed stamp lives at ownRoot/version.txt — the
                 // release zips stamp it to their tag; a mismatch means an
@@ -77,8 +80,12 @@ public final class UpdateManager {
                 state.setSelf(!release.tag().equals(landed.tag()), release.tag(), "");
                 selfRelease = release;
             } catch (Exception failure) {
+                // Only clear the banner on failure if we had nothing before
+                // (first check); a failed re-check keeps the last good state
+                if (state.selfTag() == null || state.selfTag().isBlank()) {
+                    state.setSelf(false, "", failure.getMessage());
+                }
                 log("warn", null, "self-update check failed: " + failure.getMessage());
-                state.setSelf(false, "", failure.getMessage());
             }
         });
     }

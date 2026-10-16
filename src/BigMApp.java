@@ -83,7 +83,7 @@ public final class BigMApp {
                         controller.start();
                         // Pump the AppKit run loop so the queued state
                         // pushes actually decode (no NSApp.run here).
-                        core.SwiftUIHost.pump(4.0);
+                        core.SwiftUIHost.pump(12.0);
                         String path = shotAt + 1 < argList.size()
                                 ? argList.get(shotAt + 1)
                                 : "/tmp/bigm-swift-scene.png";
