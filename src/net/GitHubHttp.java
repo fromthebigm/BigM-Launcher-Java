@@ -157,7 +157,7 @@ public final class GitHubHttp {
                                            Progress progress, Cancelled cancelled)
             throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .timeout(Duration.ofSeconds(120))
+                .timeout(Duration.ofSeconds(600))  // 10 min — was 2, too tight for 224MB
                 .header("User-Agent", "bigm-java")
                 .GET().build();
         HttpResponse<InputStream> response = CLIENT.send(
@@ -166,9 +166,10 @@ public final class GitHubHttp {
             throw new IOException("HTTP " + response.statusCode() + " for " + url);
         }
         long total = response.headers().firstValueAsLong("Content-Length").orElse(-1);
-        try (InputStream body = response.body();
-             OutputStream out = Files.newOutputStream(destination)) {
-            byte[] buffer = new byte[64 * 1024];
+        try (InputStream body = new java.io.BufferedInputStream(response.body(), 1024 * 1024);
+             OutputStream out = new java.io.BufferedOutputStream(
+                     Files.newOutputStream(destination), 1024 * 1024)) {
+            byte[] buffer = new byte[1024 * 1024];  // 1MB chunks — was 64KB
             long done = 0;
             for (int read; (read = body.read(buffer)) >= 0; ) {
                 out.write(buffer, 0, read);
@@ -178,6 +179,7 @@ public final class GitHubHttp {
                     throw new IOException("cancelled");
                 }
             }
+            out.flush();
         }
     }
 

@@ -123,6 +123,24 @@ final class StateStore: ObservableObject {
     }
 }
 
+// MARK: - Scene wrapper (ISOLATED from store changes — performance)
+
+/// The scene is the most expensive thing to paint (thousands of Canvas
+/// primitives). It must NEVER re-render because a card's CPU stat changed
+/// or the activity ticker updated. This wrapper takes palette and variant
+/// as LET values — when RootView's body re-evaluates on a state push, this
+/// view sees identical inputs and SwiftUI SKIPS it entirely.
+private struct SceneLayer: View {
+    let palette: ThemePalette
+    let variant: SceneVariant
+
+    var body: some View {
+        NightwoodScene(palette: palette, variant: variant)
+            .drawingGroup()
+            .allowsHitTesting(false)
+    }
+}
+
 // MARK: - Root View
 
 struct RootView: View {
@@ -134,7 +152,8 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            NightwoodScene(palette: store.palette, variant: store.variant)
+            // ISOLATED from state pushes — only re-renders on theme switch
+            SceneLayer(palette: store.palette, variant: store.variant)
                 .ignoresSafeArea()
 
             if store.showGate {

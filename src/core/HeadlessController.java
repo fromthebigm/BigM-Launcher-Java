@@ -74,14 +74,21 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         selfCheck.setDaemon(true);
         selfCheck.start();
 
-        // Resource stats poller — every 5 seconds, pushes updated state so
-        // cards show live RAM/CPU and the System sheet stays current.
-        // Daemon thread, zero cost when the launcher isn't visible.
+        // Resource stats poller — every 10 seconds, only when the state
+        // actually changed (hash compare). The old 5-second unconditional
+        // push caused the UI lag the owner reported: every push spawned
+        // multiple shell processes AND triggered a full SwiftUI re-render.
         Thread statsPoller = new Thread(() -> {
             while (true) {
-                try { Thread.sleep(5000); } catch (InterruptedException e) { return; }
+                try { Thread.sleep(10000); } catch (InterruptedException e) { return; }
                 try {
-                    pushState();
+                    // Run the batch ps in the background so it never blocks
+                    SystemStats.batchApps(installDirs);
+                    // Only push if the state JSON actually differs
+                    String json = buildStateJson();
+                    if (!json.equals(lastPushedJson)) {
+                        SwiftUIHost.pushState(json);
+                    }
                 } catch (Throwable ignored) {
                 }
             }
@@ -92,8 +99,32 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
 
     // ── State snapshot ───────────────────────────────────────────────────
 
+    private volatile String lastPushedJson = "";
+    private volatile long lastPushTime = 0;
+    private volatile boolean pendingPush = false;
+    private static final long PUSH_THROTTLE_MS = 500;  // max 2 pushes/second
+
     private void pushState() {
-        SwiftUIHost.pushState(buildStateJson());
+        String json = buildStateJson();
+        if (json.equals(lastPushedJson)) return;
+
+        long now = System.currentTimeMillis();
+        long since = now - lastPushTime;
+
+        if (since < PUSH_THROTTLE_MS) {
+            // Too soon — mark pending so a deferred push catches it
+            pendingPush = true;
+            return;
+        }
+
+        doPush(json);
+    }
+
+    private void doPush(String json) {
+        lastPushTime = System.currentTimeMillis();
+        lastPushedJson = json;
+        SwiftUIHost.pushState(json);
+        pendingPush = false;
     }
 
     private String buildStateJson() {
