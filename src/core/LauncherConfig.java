@@ -216,4 +216,29 @@ public final class LauncherConfig {
         }
         return out;
     }
+
+    // ── Favorites (pin apps to top with a star) ─────────────────────────
+
+    public boolean isFavorite(String appId) {
+        return "true".equals(props.getProperty("app." + appId + ".favorite"));
+    }
+
+    public void setFavorite(String appId, boolean fav) {
+        if (fav) props.setProperty("app." + appId + ".favorite", "true");
+        else props.remove("app." + appId + ".favorite");
+        save();
+    }
+
+    // ── App notes (user-attached tag shown on card) ─────────────────────
+
+    public String appNote(String appId) {
+        String note = props.getProperty("app." + appId + ".note");
+        return note == null || note.isBlank() ? null : note;
+    }
+
+    public void setAppNote(String appId, String note) {
+        if (note == null || note.isBlank()) props.remove("app." + appId + ".note");
+        else props.setProperty("app." + appId + ".note", note);
+        save();
+    }
 }

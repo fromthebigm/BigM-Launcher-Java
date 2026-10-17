@@ -15,6 +15,7 @@ struct AppCardView: View {
     let onAction: (String, String) -> Void  // (action, appId)
 
     @State private var hovered = false
+    @State private var showResources = false  // flash → fade
 
     private var chrome: ThemePalette.ChromeColors { palette.chrome(variant) }
     private var accent: Color {
@@ -25,7 +26,7 @@ struct AppCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header: emblem medallion + name + badge
+            // Header: emblem medallion + name + badge + resource flash
             HStack(alignment: .top, spacing: 10) {
                 // Icon or category emblem
                 iconMedallion
@@ -40,13 +41,50 @@ struct AppCardView: View {
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .tracking(1.2)
                         .foregroundColor(accent.opacity(0.8))
-                    Text(card.statsLine)
-                        .font(.system(size: 10, weight: .regular, design: .rounded))
-                        .foregroundColor(chrome.textMuted)
-                        .lineLimit(1)
+                    if showResources {
+                        // Resource flash: RAM + CPU briefly shown, then fades
+                        HStack(spacing: 6) {
+                            if let cpu = card.cpuPercent, cpu > 0.1 {
+                                Text(String(format: "CPU %.1f%%", cpu))
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.orange)
+                            }
+                            if let mem = card.memMB, mem > 10 {
+                                Text(String(format: "%.0f MB", mem))
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    } else if card.state == .running, let mins = card.sessionMinutes, mins > 0 {
+                        // Session timer on running cards
+                        Text(formatSession(mins))
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundColor(.green.opacity(0.8))
+                            .lineLimit(1)
+                    } else {
+                        Text(card.statsLine)
+                            .font(.system(size: 10, weight: .regular, design: .rounded))
+                            .foregroundColor(chrome.textMuted)
+                            .lineLimit(1)
+                    }
                 }
                 Spacer(minLength: 0)
-                statusBadge
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    statusBadge
+                    // Resource flash button — tap to show RAM/CPU briefly
+                    if card.state == .running {
+                        Button {
+                            flashResources()
+                        } label: {
+                            Image(systemName: "waveform.path.ecg")
+                                .font(.system(size: 11))
+                                .foregroundColor(accent.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
             .padding(.horizontal, 14)
             .padding(.top, 14)
@@ -163,6 +201,55 @@ struct AppCardView: View {
             // Card click = launch (or stop if running)
             onAction(card.state == .running ? "quit" : "launch", card.id)
         }
+        .contextMenu {
+            Button("Launch") { onAction("launch", card.id) }
+            if card.state == .running {
+                Button("Quit") { onAction("quit", card.id) }
+            }
+            Divider()
+            if card.state == .updateAvailable {
+                Button("Update Now") { onAction("update", card.id) }
+            }
+            Button("Check for Update") { onAction("checkOne", card.id) }
+            if !card.installed {
+                Button("Install…") { onAction("install", card.id) }
+            }
+            Divider()
+            Button("Reveal in Finder") { onAction("reveal", card.id) }
+            Button("Change Icon…") { onAction("setLauncherIcon", card.id) }
+            Divider()
+            Button("Copy Name") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(card.name, forType: .string)
+            }
+        }
+    }
+
+    // MARK: - Resource flash
+
+    private func flashResources() {
+        withAnimation(.easeIn(duration: 0.2)) {
+            showResources = true
+        }
+        // Auto-fade after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            withAnimation(.easeOut(duration: 0.8)) {
+                showResources = false
+            }
+        }
+    }
+
+    private func formatSession(_ minutes: Double) -> String {
+        let totalMin = Int(minutes)
+        if totalMin < 60 {
+            return "Playing for \(totalMin)m"
+        }
+        let hours = totalMin / 60
+        let mins = totalMin % 60
+        if hours < 10 {
+            return "Playing for \(hours)h \(mins)m"
+        }
+        return "Playing for \(hours)h"
     }
 
     // MARK: - Icon medallion

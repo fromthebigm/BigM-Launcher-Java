@@ -160,6 +160,17 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
                 json.field("cpuPercent", 0.0);
                 json.field("memMB", 0.0);
             }
+
+            // Play stats: last-play time (for recently-played sorting),
+            // total launch count, session minutes (for running cards).
+            long sessionMinutes = 0;
+            Long startTs = startedAt.get(app.id());
+            if (isRunning && startTs != null) {
+                sessionMinutes = (System.currentTimeMillis() - startTs) / 60000;
+            }
+            json.field("lastPlayedAt", stats.lastPlayedMillis(app.id()));
+            json.field("launches", stats.launches(app.id()));
+            json.field("sessionMinutes", sessionMinutes);
             json.closeObject();
         }
         json.closeArray();
@@ -217,6 +228,30 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         json.field("batteryPercent", SystemStats.batteryPercent());
         json.field("batteryState", SystemStats.batteryState());
         json.closeObject();
+
+        // BigM's own resource usage — real RSS/CPU from ps, not the JVM's
+        // misleading numbers (the OperatingSystemMXBean free-memory on
+        // macOS is nearly zero because macOS caches aggressively).
+        SystemStats.Self selfStats = SystemStats.self();
+        json.object("selfStats");
+        json.field("cpuPercent", selfStats.cpuPercent);
+        json.field("memMB", selfStats.memMB);
+        json.closeObject();
+
+        // Dock badge: running count (SwiftUI badge on the Dock icon)
+        json.field("runningCount", running.size());
+
+        // Play session times for running apps (live "Playing for 2h 15m")
+        json.array("sessions");
+        for (Map.Entry<String, Long> entry : startedAt.entrySet()) {
+            if (!running.containsKey(entry.getKey())) continue;
+            long minutes = (System.currentTimeMillis() - entry.getValue()) / 60000;
+            json.beginElement();
+            json.field("appId", entry.getKey());
+            json.field("minutes", minutes);
+            json.closeObject();
+        }
+        json.closeArray();
 
         // Diagnostics events (the sheet reads the last 100)
         json.array("events");

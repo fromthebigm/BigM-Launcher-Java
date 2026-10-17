@@ -7,14 +7,20 @@ import SwiftUI
 /// the people who liked them.
 
 enum SceneVariant: String, Codable {
-    case night, day
+    case night, dawn, day, dusk
 
-    /// Resolve "auto" from the host clock (7:00–19:00 = day).
+    /// Resolve "auto" from the host clock — dawn 5-8, day 8-17, dusk 17-20, night 20-5.
     static func resolve(_ raw: String?, hour: Int = Calendar.current.component(.hour, from: Date())) -> SceneVariant {
         switch raw {
         case "night": return .night
+        case "dawn": return .dawn
         case "day": return .day
-        default: return (hour >= 7 && hour < 19) ? .day : .night
+        case "dusk": return .dusk
+        default:
+            if hour >= 5 && hour < 8 { return .dawn }
+            if hour >= 8 && hour < 17 { return .day }
+            if hour >= 17 && hour < 20 { return .dusk }
+            return .night
         }
     }
 }
@@ -28,16 +34,67 @@ struct ThemePalette {
     let accentPair: Color
     let ink: Color            // warm off-white star/moon tone
 
-    // Scene tones per variant
+    // Scene tones per variant — dawn/dusk auto-computed from night/day when nil
     let night: SceneColors
+    let dawnOpt: SceneColors?
     let day: SceneColors
+    let duskOpt: SceneColors?
 
     // Chrome (window furniture) per variant
     let nightChrome: ChromeColors
+    let dawnChrome: ChromeColors
     let dayChrome: ChromeColors
+    let duskChrome: ChromeColors
 
-    func scene(_ variant: SceneVariant) -> SceneColors { variant == .day ? day : night }
-    func chrome(_ variant: SceneVariant) -> ChromeColors { variant == .day ? dayChrome : nightChrome }
+    var dawn: SceneColors {
+        dawnOpt ?? SceneColors(
+            skyTop: CM.mix(night.skyTop, day.skyTop, 0.3),
+            skyHorizon: day.skyHorizon,
+            ridgeFar: day.ridgeFar, ridgeMid: day.ridgeMid, ridgeNear: day.ridgeNear,
+            lakeDeep: day.lakeDeep, lakeGlint: day.lakeGlint,
+            ground: day.ground, foliage: day.foliage, shadow: day.shadow)
+    }
+    var dusk: SceneColors {
+        duskOpt ?? SceneColors(
+            skyTop: night.skyTop,
+            skyHorizon: CM.mix(night.skyHorizon, day.skyHorizon, 0.5),
+            ridgeFar: CM.mix(night.ridgeFar, day.ridgeFar, 0.3),
+            ridgeMid: night.ridgeMid, ridgeNear: night.ridgeNear,
+            lakeDeep: night.lakeDeep, lakeGlint: day.lakeGlint,
+            ground: night.ground, foliage: night.foliage, shadow: night.shadow)
+    }
+
+    func scene(_ variant: SceneVariant) -> SceneColors {
+        switch variant {
+        case .night: return night
+        case .dawn: return dawn
+        case .day: return day
+        case .dusk: return dusk
+        }
+    }
+    func chrome(_ variant: SceneVariant) -> ChromeColors {
+        switch variant {
+        case .night: return nightChrome
+        case .dawn: return dawnChrome
+        case .day: return dayChrome
+        case .dusk: return duskChrome
+        }
+    }
+
+    init(key: String, title: String, accent: Color, accentPair: Color, ink: Color,
+         night: SceneColors, dawn: SceneColors? = nil,
+         day: SceneColors, dusk: SceneColors? = nil,
+         nightChrome: ChromeColors, dawnChrome: ChromeColors? = nil,
+         dayChrome: ChromeColors, duskChrome: ChromeColors? = nil) {
+        self.key = key; self.title = title
+        self.accent = accent; self.accentPair = accentPair; self.ink = ink
+        self.night = night; self.dawnOpt = dawn
+        self.day = day; self.duskOpt = dusk
+        self.nightChrome = nightChrome
+        self.dawnChrome = dawnChrome ?? nightChrome
+        self.dayChrome = dayChrome
+        self.duskChrome = duskChrome ?? nightChrome
+    }
 
     struct SceneColors {
         let skyTop: Color
@@ -81,22 +138,75 @@ struct ThemePalette {
             ridgeFar: hex(0x2E5240), ridgeMid: hex(0x1B352A), ridgeNear: hex(0x0F2018),
             lakeDeep: hex(0x0A1C16), lakeGlint: hex(0xBFE6C9),
             ground: hex(0x0A150F), foliage: hex(0x143424), shadow: hex(0x060B08)),
+        dawn: SceneColors(
+            skyTop: hex(0x1A1520), skyHorizon: hex(0xE8A05E),
+            ridgeFar: hex(0x4A6050), ridgeMid: hex(0x2E4438), ridgeNear: hex(0x1A2E20),
+            lakeDeep: hex(0x1A3028), lakeGlint: hex(0xFFE4B8),
+            ground: hex(0x1A2A1E), foliage: hex(0x2A4A34), shadow: hex(0x0E1810)),
         day: SceneColors(
             skyTop: hex(0x5E93B8), skyHorizon: hex(0xE4D9B4),
             ridgeFar: hex(0x6E8F77), ridgeMid: hex(0x476B52), ridgeNear: hex(0x2C4A34),
             lakeDeep: hex(0x3E6E7E), lakeGlint: hex(0xFFF3D0),
             ground: hex(0x24402C), foliage: hex(0x356043), shadow: hex(0x1B2E20)),
+        dusk: SceneColors(
+            skyTop: hex(0x2A1A30), skyHorizon: hex(0xE8734C),
+            ridgeFar: hex(0x5A5048), ridgeMid: hex(0x3A3430), ridgeNear: hex(0x222018),
+            lakeDeep: hex(0x2A2420), lakeGlint: hex(0xFFB890),
+            ground: hex(0x2A2018), foliage: hex(0x3A3028), shadow: hex(0x1A140E)),
         nightChrome: ChromeColors(
             chromeDeep: hex(0x0A0D0C), chromeRaised: hex(0x121615),
             cardFill: hex(0x15251E), cardFill2: hex(0x1C2E26),
             separator: hex(0x333B38),
             textPrimary: hex(0xF0EDE2), textMuted: hex(0x98A098), textFaint: hex(0x636B64)),
+        dawnChrome: ChromeColors(
+            chromeDeep: hex(0x1A1520), chromeRaised: hex(0x2A2430),
+            cardFill: hex(0x2A2030), cardFill2: hex(0x352A3C),
+            separator: hex(0x4A4050),
+            textPrimary: hex(0xFFE8D0), textMuted: hex(0xC0A890), textFaint: hex(0x8A7868)),
         dayChrome: ChromeColors(
             chromeDeep: hex(0x2A231C), chromeRaised: hex(0x3A3128),
             cardFill: hex(0x31291F), cardFill2: hex(0x3A3126),
             separator: hex(0x4A4438),
-            textPrimary: hex(0xFFF8EA), textMuted: hex(0xC9BCA3), textFaint: hex(0x948874))
+            textPrimary: hex(0xFFF8EA), textMuted: hex(0xC9BCA3), textFaint: hex(0x948874)),
+        duskChrome: ChromeColors(
+            chromeDeep: hex(0x1A1218), chromeRaised: hex(0x282028),
+            cardFill: hex(0x2A2028), cardFill2: hex(0x342830),
+            separator: hex(0x484048),
+            textPrimary: hex(0xF8E8DC), textMuted: hex(0xB8A098), textFaint: hex(0x807068))
     )
+
+    /// Auto-generate a dawn variant from a theme's night and day colors.
+    private static func makeDawn(from night: SceneColors, to day: SceneColors) -> SceneColors {
+        SceneColors(
+            skyTop: mixHex(night.skyTop, day.skyTop, 0.3),
+            skyHorizon: day.skyHorizon,
+            ridgeFar: day.ridgeFar,
+            ridgeMid: day.ridgeMid,
+            ridgeNear: day.ridgeNear,
+            lakeDeep: day.lakeDeep,
+            lakeGlint: day.lakeGlint,
+            ground: day.ground,
+            foliage: day.foliage,
+            shadow: day.shadow)
+    }
+
+    private static func makeDusk(from night: SceneColors, to day: SceneColors) -> SceneColors {
+        SceneColors(
+            skyTop: night.skyTop,
+            skyHorizon: mixHex(night.skyHorizon, day.skyHorizon, 0.5),
+            ridgeFar: mixHex(night.ridgeFar, day.ridgeFar, 0.3),
+            ridgeMid: night.ridgeMid,
+            ridgeNear: night.ridgeNear,
+            lakeDeep: night.lakeDeep,
+            lakeGlint: day.lakeGlint,
+            ground: night.ground,
+            foliage: night.foliage,
+            shadow: night.shadow)
+    }
+
+    private static func mixHex(_ a: Color, _ b: Color, _ f: Double) -> Color {
+        CM.mix(a, b, f)
+    }
 
     static let summit = ThemePalette(
         key: "summit", title: "Summit",

@@ -30,6 +30,9 @@ struct CardModel: Codable, Identifiable {
     let iconPath: String?
     let cpuPercent: Double?
     let memMB: Double?
+    let lastPlayedAt: Double?
+    let launches: Int?
+    let sessionMinutes: Double?
 }
 
 struct FilterModel: Codable, Identifiable {
@@ -59,6 +62,19 @@ struct SystemModel: Codable {
     let batteryState: String
 }
 
+/// BigM's own resource usage (real RSS/CPU from ps).
+struct SelfStatsModel: Codable {
+    let cpuPercent: Double
+    let memMB: Double
+}
+
+/// One running app's play session (minutes since launch).
+struct SessionModel: Codable, Identifiable {
+    let appId: String
+    let minutes: Double
+    var id: String { appId }
+}
+
 struct StateSnapshot: Codable {
     let windowTitle: String
     let themeKey: String
@@ -76,6 +92,8 @@ struct StateSnapshot: Codable {
     let events: [String]?
     let needsDefaultFolder: Bool?
     let system: SystemModel?
+    let selfStats: SelfStatsModel?
+    let sessions: [SessionModel]?
 }
 
 // MARK: - Action handler (C function pointer, registered by Java)
@@ -110,10 +128,12 @@ final class StateStore: ObservableObject {
 struct RootView: View {
     @EnvironmentObject var store: StateStore
     @State private var searchText = ""
+    @State private var showPalette = false
+    @State private var paletteQuery = ""
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         ZStack {
-            // The Nightwood scene — renders ONCE per size/theme/variant
             NightwoodScene(palette: store.palette, variant: store.variant)
                 .ignoresSafeArea()
 
@@ -128,44 +148,7 @@ struct RootView: View {
                         .background(sidebarBackground)
 
                     VStack(spacing: 0) {
-                        // Self-update banner — prominent, first thing you see
-                        if let snap = store.snapshot, snap.selfUpdateAvailable {
-                            HStack(spacing: 10) {
-                                Image(systemName: "arrow.down.circle.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.orange)
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text("BigM \(snap.selfUpdateTag ?? "") is available")
-                                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                                        .foregroundColor(store.palette.chrome(store.variant).textPrimary)
-                                    Text("You're running \(snap.version)")
-                                        .font(.system(size: 10, design: .rounded))
-                                        .foregroundColor(store.palette.chrome(store.variant).textMuted)
-                                }
-                                Spacer()
-                                Button("Install & Restart") {
-                                    store.dispatch("installSelf", id: "")
-                                }
-                                .buttonStyle(PrimaryButtonStyle(accent: .orange))
-                                Button("Details") {
-                                    store.activeSheet = .updates
-                                }
-                                .buttonStyle(GhostButtonStyle(
-                                    chrome: store.palette.chrome(store.variant)))
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color.orange.opacity(0.10))
-                                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .strokeBorder(Color.orange.opacity(0.3), lineWidth: 1))
-                            )
-                            .padding(.horizontal, 20)
-                            .padding(.top, 10)
-                        }
-
-                        // Header: rescan button + search field
+                        // Header: rescan + BigM self-stats + search
                         HStack {
                             Button {
                                 store.dispatch("rescan", id: "")
@@ -188,6 +171,25 @@ struct RootView: View {
                             }
                             .buttonStyle(.plain)
 
+                            if let ss = store.snapshot?.selfStats {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "memorychip")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.blue.opacity(0.7))
+                                    Text(String(format: "%.0f MB", ss.memMB))
+                                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                        .foregroundColor(.blue.opacity(0.8))
+                                    if ss.cpuPercent > 1 {
+                                        Text(String(format: "· %.0f%%", ss.cpuPercent))
+                                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                            .foregroundColor(.orange.opacity(0.8))
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.white.opacity(0.04)))
+                            }
+
                             Spacer()
 
                             HStack(spacing: 8) {
@@ -198,6 +200,7 @@ struct RootView: View {
                                     .textFieldStyle(.plain)
                                     .font(.system(size: 12, design: .rounded))
                                     .foregroundColor(store.palette.chrome(store.variant).textPrimary)
+                                    .focused($searchFocused)
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
@@ -228,8 +231,40 @@ struct RootView: View {
                             }
                             .padding(20)
                         }
+
+                        // Activity ticker
+                        if let events = store.snapshot?.events,
+                           let latest = events.last {
+                            HStack(spacing: 6) {
+                                Circle().fill(Color.green).frame(width: 5, height: 5)
+                                Text(latest)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundColor(store.palette.chrome(store.variant).textMuted)
+                                    .lineLimit(1)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 4)
+                            .background(Color.black.opacity(0.15))
+                        }
                     }
                 }
+            }
+
+            // Command palette (Cmd+K)
+            if showPalette {
+                CommandPalette(query: $paletteQuery,
+                               cards: store.snapshot?.cards ?? [],
+                               onSelect: { action, id in
+                                    store.dispatch(action, id: id)
+                                    showPalette = false
+                                    paletteQuery = ""
+                               },
+                               onClose: {
+                                    showPalette = false
+                                    paletteQuery = ""
+                               })
+                .zIndex(10)
             }
         }
         .navigationTitle(store.snapshot?.windowTitle ?? "BigM")
@@ -243,6 +278,46 @@ struct RootView: View {
             case .system: SystemSheet()
             }
         }
+        .onAppear {
+            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                handleKeyEvent(event)
+            }
+        }
+        .onChange(of: store.snapshot?.runningCount) { count in
+            updateDockBadge(count ?? 0)
+        }
+    }
+
+    private func handleKeyEvent(_ event: NSEvent) -> NSEvent? {
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if mods == .command && event.charactersIgnoringModifiers == "k" {
+            showPalette.toggle()
+            if showPalette { paletteQuery = "" }
+            return nil
+        }
+        if mods == .command && event.charactersIgnoringModifiers == "f" {
+            searchFocused = true
+            return nil
+        }
+        if mods == .command,
+           let s = event.charactersIgnoringModifiers,
+           let n = Int(s), n >= 1 && n <= 9 {
+            let cards = filteredCards
+            if n <= cards.count {
+                let c = cards[n - 1]
+                store.dispatch(c.state == .running ? "quit" : "launch", id: c.id)
+                return nil
+            }
+        }
+        if event.keyCode == 53 {
+            if showPalette { showPalette = false; paletteQuery = ""; return nil }
+            if !searchText.isEmpty { searchText = ""; return nil }
+        }
+        return event
+    }
+
+    private func updateDockBadge(_ count: Int) {
+        NSApplication.shared.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
     }
 
     private var filteredCards: [CardModel] {
@@ -256,6 +331,12 @@ struct RootView: View {
                 $0.name.localizedCaseInsensitiveContains(searchText) ||
                 $0.summary.localizedCaseInsensitiveContains(searchText)
             }
+        }
+        cards.sort { a, b in
+            let ap = a.lastPlayedAt ?? 0
+            let bp = b.lastPlayedAt ?? 0
+            if ap != bp { return ap > bp }
+            return a.name.localizedCompare(b.name) == .orderedAscending
         }
         return cards
     }
@@ -274,6 +355,123 @@ struct RootView: View {
                         store.palette.chrome(store.variant).separator.opacity(0.3),
                         lineWidth: 0.5)
             )
+    }
+}
+
+// MARK: - Command Palette (Cmd+K)
+
+struct CommandPalette: View {
+    @Binding var query: String
+    let cards: [CardModel]
+    let onSelect: (String, String) -> Void
+    let onClose: () -> Void
+    @State private var selIdx = 0
+    @FocusState private var focused: Bool
+
+    var results: [(String, String, String, String)] {
+        var r: [(String, String, String, String)] = []
+        let q = query.lowercased()
+        for c in cards {
+            if q.isEmpty || c.name.lowercased().contains(q) || c.summary.lowercased().contains(q) {
+                r.append((c.state == .running ? "quit" : "launch", c.id,
+                          c.state == .running ? "Quit \(c.name)" : "Launch \(c.name)", c.summary))
+                if c.state == .updateAvailable {
+                    r.append(("update", c.id, "Update \(c.name)", "New version available"))
+                }
+                r.append(("reveal", c.id, "Reveal \(c.name)", "Open in Finder"))
+            }
+        }
+        if q.isEmpty || "rescan".contains(q) { r.append(("rescan", "", "Rescan Apps Folder", "")) }
+        if q.isEmpty || "update check".contains(q) { r.append(("checkAll", "", "Check All Updates", "")) }
+        if q.isEmpty || "system stats".contains(q) { r.append(("openSystem", "", "Open System Stats", "")) }
+        return Array(r.prefix(12))
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .onTapGesture { onClose() }
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.5))
+                    TextField("Search apps and actions…", text: $query)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 16, design: .rounded))
+                        .foregroundColor(.white)
+                        .focused($focused)
+                        .onSubmit { submit() }
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+
+                Divider().overlay(Color.white.opacity(0.1))
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(results.enumerated()), id: \.offset) { idx, item in
+                            Button {
+                                onSelect(item.0, item.1)
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.2)
+                                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                                            .foregroundColor(.white)
+                                        if !item.3.isEmpty {
+                                            Text(item.3)
+                                                .font(.system(size: 10, design: .rounded))
+                                                .foregroundColor(.white.opacity(0.5))
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                    if idx == selIdx {
+                                        Image(systemName: "return")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.white.opacity(0.4))
+                                    }
+                                }
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 8)
+                                .background(idx == selIdx ? Color.white.opacity(0.08) : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxHeight: 300)
+
+                Divider().overlay(Color.white.opacity(0.1))
+
+                HStack {
+                    Text("↩ select").font(.system(size: 9)).foregroundColor(.white.opacity(0.3))
+                    Spacer()
+                    Text("esc close").font(.system(size: 9)).foregroundColor(.white.opacity(0.3))
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 8)
+            }
+            .frame(width: 480)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black.opacity(0.85))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+            )
+            .shadow(color: .black.opacity(0.5), radius: 30)
+            .padding(.top, 80)
+        }
+        .onAppear { focused = true }
+    }
+
+    private func submit() {
+        guard selIdx < results.count else { return }
+        let item = results[selIdx]
+        onSelect(item.0, item.1)
     }
 }
 

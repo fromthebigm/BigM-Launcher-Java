@@ -3,28 +3,25 @@ package core;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.lang.management.ManagementFactory;
 
 /**
- * System-wide and per-app resource monitoring. Uses pure-Java APIs where
- * possible (com.sun.management.OperatingSystemMXBean) and the macOS `ps`
- * command for per-process CPU/memory (no native deps needed).
+ * System-wide and per-process resource monitoring.
  *
- * Stats are polled lazily on a background thread; the controller pushes
- * them into the state JSON so cards and the System sheet can render them.
+ * Uses the real macOS `vm_stat` + `sysctl` for memory (the JVM's
+ * OperatingSystemMXBean reports "free" as nearly-zero because macOS
+ * aggressively caches — that's the 100% RAM bug). CPU comes from
+ * `ps aux` for per-process, and `top -l 1` for system-wide (the JVM's
+ * getSystemCpuLoad() is unreliable on macOS). Battery from `pmset`.
  */
 public final class SystemStats {
 
-    // ── System-wide snapshot ────────────────────────────────────────────
-
     public static final class Machine {
-        public double cpuPercent;       // 0..100
-        public double memUsedGB;
+        public double cpuPercent;       // real system CPU (0..100)
+        public double memUsedGB;       // real used RAM (wired + active + compressed)
         public double memTotalGB;
         public double memPercent;
         public double loadAvg;
@@ -36,50 +33,160 @@ public final class SystemStats {
     public static final class App {
         public String appId;
         public double cpuPercent;
+        public double memMB;           // real RSS from ps
+        public long timestamp = System.currentTimeMillis();
+    }
+
+    /** BigM's own process snapshot. */
+    public static final class Self {
+        public double cpuPercent;
         public double memMB;
         public long timestamp = System.currentTimeMillis();
     }
 
+    private static volatile Machine lastMachine;
+    private static volatile Self lastSelf;
     private static final Map<String, App> appCache = new ConcurrentHashMap<>();
 
-    /**
-     * Take a system-wide snapshot. Cheap — one MXBean read + one `ps` call.
-     */
+    // ── System-wide ───────────────────────────────────────────────────
+
     public static Machine machine() {
+        if (lastMachine != null && System.currentTimeMillis() - lastMachine.timestamp < 3000) {
+            return lastMachine;
+        }
         Machine m = new Machine();
         try {
-            var osBean = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
-            if (osBean instanceof com.sun.management.OperatingSystemMXBean sun) {
-                double load = sun.getCpuLoad();
-                m.cpuPercent = Math.max(0, load * 100.0);
-                long totalMem = sun.getTotalMemorySize();
-                long freeMem = sun.getFreeMemorySize();
-                m.memTotalGB = totalMem / (1024.0 * 1024 * 1024);
-                m.memUsedGB = (totalMem - freeMem) / (1024.0 * 1024 * 1024);
-                m.memPercent = totalMem > 0 ? ((totalMem - freeMem) * 100.0 / totalMem) : 0;
+            // Real memory: `vm_stat` gives page counts. Page size is 16384
+            // on Apple Silicon (query via sysctl hw.pagesize or just parse).
+            java.lang.Process p = new java.lang.ProcessBuilder("/usr/sbin/sysctl", "hw.memsize", "hw.pagesize")
+                    .redirectErrorStream(true).start();
+            String sysctlOut = new String(p.getInputStream().readAllBytes());
+            p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+
+            long totalBytes = 0;
+            long pageSize = 16384;
+            for (String line : sysctlOut.split("\n")) {
+                if (line.startsWith("hw.memsize:")) {
+                    totalBytes = Long.parseLong(line.split(":")[1].trim());
+                } else if (line.startsWith("hw.pagesize:")) {
+                    pageSize = Long.parseLong(line.split(":")[1].trim());
+                }
             }
-            m.loadAvg = osBean.getSystemLoadAverage();
-            if (m.loadAvg < 0) m.loadAvg = 0;
-            m.threadCount = ManagementFactory.getThreadMXBean().getThreadCount();
-        } catch (Throwable ignored) {
+            m.memTotalGB = totalBytes / (1024.0 * 1024 * 1024);
+
+            // vm_stat: count pages that are genuinely in use (wired + active + compressed + speculative partially)
+            java.lang.Process vp = new java.lang.ProcessBuilder("/usr/bin/vm_stat")
+                    .redirectErrorStream(true).start();
+            String vmOut = new String(vp.getInputStream().readAllBytes());
+            vp.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+
+            long usedPages = 0;
+            long freePages = 0;
+            for (String line : vmOut.split("\n")) {
+                String clean = line.replaceAll("[().]", " ").trim();
+                if (clean.contains("Pages wired down") || clean.contains("Pages active")
+                        || clean.contains("Pages occupied by compressor")) {
+                    usedPages += extractPageCount(clean);
+                } else if (clean.contains("Pages free")) {
+                    freePages += extractPageCount(clean);
+                }
+            }
+            // "Pages inactive" counts as available-ish on macOS — don't add to used
+            long usedBytes = usedPages * pageSize;
+            m.memUsedGB = usedBytes / (1024.0 * 1024 * 1024);
+            // Cap: if vm_stat parsing failed, fall back to JVM estimate
+            if (m.memUsedGB <= 0 || m.memUsedGB > m.memTotalGB) {
+                var osBean = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+                if (osBean instanceof com.sun.management.OperatingSystemMXBean sun) {
+                    m.memUsedGB = (sun.getTotalMemorySize() - sun.getFreeMemorySize()) / (1024.0 * 1024 * 1024);
+                }
+            }
+            m.memPercent = m.memTotalGB > 0 ? (m.memUsedGB / m.memTotalGB * 100.0) : 0;
+
+            // Real CPU: `top -l 1` gives accurate system CPU on macOS
+            java.lang.Process tp = new java.lang.ProcessBuilder("/usr/bin/top", "-l", "1", "-n", "0")
+                    .redirectErrorStream(true).start();
+            String topOut = new String(tp.getInputStream().readAllBytes());
+            tp.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+            for (String line : topOut.split("\n")) {
+                if (line.contains("CPU usage:")) {
+                    // e.g. "CPU usage: 12.34% user, 3.21% sys, 84.45% idle"
+                    String[] parts = line.split(",");
+                    double user = parseDoubleSafe(parts[0].replaceAll("[^0-9.]", ""));
+                    double sys = parts.length > 1 ? parseDoubleSafe(parts[1].replaceAll("[^0-9.]", "")) : 0;
+                    m.cpuPercent = user + sys;
+                    break;
+                }
+            }
+            if (m.cpuPercent <= 0) {
+                // Fallback: JVM's getSystemCpuLoad (less accurate on macOS)
+                var osBean = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+                if (osBean instanceof com.sun.management.OperatingSystemMXBean sun) {
+                    m.cpuPercent = Math.max(0, sun.getCpuLoad() * 100.0);
+                }
+            }
+        } catch (Exception ignored) {
         }
+        try {
+            m.loadAvg = java.lang.management.ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
+            if (m.loadAvg < 0) m.loadAvg = 0;
+            m.threadCount = java.lang.management.ManagementFactory.getThreadMXBean().getThreadCount();
+        } catch (Exception ignored) {}
+        lastMachine = m;
         return m;
     }
 
-    /**
-     * Snapshot one app's resource usage. Uses `ps` to find the process by
-     * matching the app's install directory name against running commands.
-     * Returns a cached snapshot when the process isn't found (app not running).
-     */
+    private static long extractPageCount(String line) {
+        try {
+            // "Pages wired down:  123456."
+            String[] parts = line.split(":");
+            if (parts.length > 1) {
+                return Long.parseLong(parts[1].trim().replace(".", ""));
+            }
+        } catch (NumberFormatException ignored) {}
+        return 0;
+    }
+
+    private static double parseDoubleSafe(String s) {
+        try { return Double.parseDouble(s.trim()); }
+        catch (Exception e) { return 0; }
+    }
+
+    // ── BigM's own process ─────────────────────────────────────────────
+
+    public static Self self() {
+        if (lastSelf != null && System.currentTimeMillis() - lastSelf.timestamp < 3000) {
+            return lastSelf;
+        }
+        Self s = new Self();
+        try {
+            long myPid = ProcessHandle.current().pid();
+            java.lang.Process p = new java.lang.ProcessBuilder(
+                    "/bin/sh", "-c", "ps -o %cpu=,rss= -p " + myPid)
+                    .redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes());
+            p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+            String[] fields = out.trim().split("\\s+");
+            if (fields.length >= 2) {
+                s.cpuPercent = parseDoubleSafe(fields[0]);
+                s.memMB = parseDoubleSafe(fields[1]) / 1024.0;
+            }
+        } catch (Exception ignored) {}
+        s.timestamp = System.currentTimeMillis();
+        lastSelf = s;
+        return s;
+    }
+
+    // ── Per-app ───────────────────────────────────────────────────────
+
     public static App app(String appId, Path installDir) {
         App cached = appCache.get(appId);
         if (cached != null && System.currentTimeMillis() - cached.timestamp < 3000) {
-            return cached;   // 3-second cache — ps is expensive per-app
+            return cached;
         }
         App snapshot = new App();
         snapshot.appId = appId;
         try {
-            // Find the process by matching install dir basename in the command line
             String nameHint = installDir != null
                     ? installDir.getFileName().toString() : appId;
             java.lang.Process p = new java.lang.ProcessBuilder(
@@ -89,30 +196,18 @@ public final class SystemStats {
             String output = new String(p.getInputStream().readAllBytes());
             p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
             if (!output.isBlank()) {
-                // ps aux format: USER PID %CPU %MEM VSZ RSS TT STAT STARTED TIME COMMAND
                 String[] fields = output.trim().split("\\s+");
                 if (fields.length >= 6) {
-                    try {
-                        snapshot.cpuPercent = Double.parseDouble(fields[2]);
-                    } catch (NumberFormatException ignored) {}
-                    try {
-                        // RSS is in KB in ps aux
-                        double rssKB = Double.parseDouble(fields[5]);
-                        snapshot.memMB = rssKB / 1024.0;
-                    } catch (NumberFormatException ignored) {}
+                    try { snapshot.cpuPercent = Double.parseDouble(fields[2]); } catch (NumberFormatException ignored) {}
+                    try { snapshot.memMB = Double.parseDouble(fields[5]) / 1024.0; } catch (NumberFormatException ignored) {}
                 }
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         snapshot.timestamp = System.currentTimeMillis();
         appCache.put(appId, snapshot);
         return snapshot;
     }
 
-    /**
-     * Snapshot ALL running apps tracked by the launcher. Returns only apps
-     * that currently have a running process (cpu > 0 or mem > 0).
-     */
     public static List<App> runningApps(Map<String, Path> installDirs) {
         List<App> running = new ArrayList<>();
         for (Map.Entry<String, Path> entry : installDirs.entrySet()) {
@@ -124,16 +219,14 @@ public final class SystemStats {
         return running;
     }
 
-    /**
-     * The Mac's total uptime as a human-readable string.
-     */
+    // ── Machine info ──────────────────────────────────────────────────
+
     public static String uptime() {
         try {
             java.lang.Process p = new java.lang.ProcessBuilder("/usr/sbin/sysctl", "-n", "kern.boottime")
                     .redirectErrorStream(true).start();
             String output = new String(p.getInputStream().readAllBytes());
             p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
-            // Output: { sec = 1697116800, usec = 123456 } Thu Oct 12 08:00:00 2026
             int secIdx = output.indexOf("sec = ") + 6;
             if (secIdx > 6) {
                 String secStr = output.substring(secIdx, output.indexOf(",", secIdx)).trim();
@@ -150,9 +243,6 @@ public final class SystemStats {
         return "—";
     }
 
-    /**
-     * The Mac's model name (e.g. "MacBook Pro 14-inch, 2021").
-     */
     public static String modelName() {
         try {
             java.lang.Process p = new java.lang.ProcessBuilder(
@@ -165,9 +255,6 @@ public final class SystemStats {
         return "Mac";
     }
 
-    /**
-     * Battery level (0-100) or -1 when no battery (desktop Mac).
-     */
     public static int batteryPercent() {
         try {
             java.lang.Process p = new java.lang.ProcessBuilder(
@@ -175,7 +262,6 @@ public final class SystemStats {
                     .redirectErrorStream(true).start();
             String output = new String(p.getInputStream().readAllBytes());
             p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
-            // Output: "Currently charged; 100%" or " discharging; 45%"
             int pctIdx = output.indexOf("%");
             if (pctIdx > 0) {
                 int start = pctIdx - 1;
@@ -186,9 +272,6 @@ public final class SystemStats {
         return -1;
     }
 
-    /**
-     * Battery charging state: "charging", "discharging", "charged", or "—".
-     */
     public static String batteryState() {
         try {
             java.lang.Process p = new java.lang.ProcessBuilder(
