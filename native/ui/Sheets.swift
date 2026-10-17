@@ -9,7 +9,7 @@ import AppKit
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum SheetKind: String, Identifiable {
-    case updates, customize, settings, diagnostics, getApps
+    case updates, customize, settings, diagnostics, getApps, system
     var id: String { rawValue }
 
     var title: String {
@@ -19,6 +19,7 @@ enum SheetKind: String, Identifiable {
         case .settings: return "Settings"
         case .diagnostics: return "Diagnostics"
         case .getApps: return "Get Apps"
+        case .system: return "System"
         }
     }
 }
@@ -473,7 +474,184 @@ struct GetAppsSheet: View {
     private var chrome: ThemePalette.ChromeColors { store.palette.chrome(store.variant) }
 }
 
-// MARK: - Native pickers
+// MARK: - System Sheet (machine-wide resource stats)
+
+struct SystemSheet: View {
+    @EnvironmentObject var store: StateStore
+
+    var body: some View {
+        SheetScaffold(title: "System") {
+            if let sys = store.snapshot?.system {
+                // CPU
+                SheetCard(title: "CPU", icon: "cpu.fill") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(String(format: "%.1f%%", sys.cpuPercent))
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundColor(sys.cpuPercent > 80 ? .red
+                                                 : sys.cpuPercent > 50 ? .orange
+                                                 : .green)
+                            Spacer()
+                            Text("Load avg: " + String(format: "%.2f", sys.loadAvg))
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundColor(chrome.textMuted)
+                        }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(chrome.separator.opacity(0.3))
+                                    .frame(height: 8)
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(sys.cpuPercent > 80 ? Color.red
+                                          : sys.cpuPercent > 50 ? Color.orange
+                                          : Color.green)
+                                    .frame(width: geo.size.width * min(1, sys.cpuPercent / 100),
+                                           height: 8)
+                            }
+                        }
+                        .frame(height: 8)
+                    }
+                }
+
+                // Memory
+                SheetCard(title: "Memory", icon: "memorychip") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(String(format: "%.1f GB / %.1f GB", sys.memUsedGB, sys.memTotalGB))
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                .foregroundColor(chrome.textPrimary)
+                            Spacer()
+                            Text(String(format: "%.0f%%", sys.memPercent))
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundColor(sys.memPercent > 85 ? .red
+                                                 : sys.memPercent > 70 ? .orange
+                                                 : .green)
+                        }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(chrome.separator.opacity(0.3))
+                                    .frame(height: 8)
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(sys.memPercent > 85 ? Color.red
+                                          : sys.memPercent > 70 ? Color.orange
+                                          : Color.blue)
+                                    .frame(width: geo.size.width * min(1, sys.memPercent / 100),
+                                           height: 8)
+                            }
+                        }
+                        .frame(height: 8)
+                    }
+                }
+
+                // Battery
+                if sys.batteryPercent >= 0 {
+                    SheetCard(title: "Battery", icon: "battery.100") {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(sys.batteryPercent)%")
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    .foregroundColor(batteryColor(sys.batteryPercent))
+                                Text(sys.batteryState)
+                                    .font(.system(size: 11, design: .rounded))
+                                    .foregroundColor(chrome.textMuted)
+                            }
+                            Spacer()
+                            BatteryBar(percent: sys.batteryPercent)
+                        }
+                    }
+                }
+
+                // Machine info
+                SheetCard(title: "Machine", icon: "desktopcomputer") {
+                    VStack(spacing: 4) {
+                        LabeledRow(label: "Model", value: sys.model)
+                        LabeledRow(label: "Uptime", value: sys.uptime)
+                        LabeledRow(label: "Threads", value: "\(sys.threadCount)")
+                        LabeledRow(label: "BigM Version", value: store.snapshot?.version ?? "dev")
+                    }
+                }
+
+                // Per-app resource usage
+                let runningApps = (store.snapshot?.cards ?? []).filter {
+                    ($0.cpuPercent ?? 0) > 0.1 || ($0.memMB ?? 0) > 10
+                }
+                if !runningApps.isEmpty {
+                    SheetCard(title: "Running Apps", icon: "chart.bar.fill") {
+                        ForEach(runningApps) { card in
+                            HStack {
+                                Text(card.name)
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundColor(chrome.textPrimary)
+                                Spacer()
+                                if let cpu = card.cpuPercent, cpu > 0.1 {
+                                    Text(String(format: "CPU %.1f%%", cpu))
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundColor(.orange)
+                                }
+                                if let mem = card.memMB, mem > 10 {
+                                    Text(String(format: "%.0f MB", mem))
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
+            } else {
+                Text("Gathering system stats…")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundColor(chrome.textMuted)
+            }
+        }
+    }
+
+    private var chrome: ThemePalette.ChromeColors { store.palette.chrome(store.variant) }
+
+    private func batteryColor(_ pct: Int) -> Color {
+        if pct > 50 { return .green }
+        if pct > 20 { return .orange }
+        return .red
+    }
+}
+
+struct LabeledRow: View {
+    let label: String
+    let value: String
+    @EnvironmentObject var store: StateStore
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundColor(store.palette.chrome(store.variant).textMuted)
+            Spacer()
+            Text(value)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundColor(store.palette.chrome(store.variant).textPrimary)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+struct BatteryBar: View {
+    let percent: Int
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: geo.size.width, height: 14)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(percent > 50 ? Color.green : percent > 20 ? Color.orange : Color.red)
+                    .frame(width: geo.size.width * CGFloat(percent) / 100, height: 14)
+            }
+        }
+        .frame(width: 120, height: 14)
+    }
+}
 
 func pickFolder(_ onPick: @escaping (String) -> Void) {
     let panel = NSOpenPanel()

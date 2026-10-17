@@ -73,6 +73,21 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         }, "bigm-selfcheck");
         selfCheck.setDaemon(true);
         selfCheck.start();
+
+        // Resource stats poller — every 5 seconds, pushes updated state so
+        // cards show live RAM/CPU and the System sheet stays current.
+        // Daemon thread, zero cost when the launcher isn't visible.
+        Thread statsPoller = new Thread(() -> {
+            while (true) {
+                try { Thread.sleep(5000); } catch (InterruptedException e) { return; }
+                try {
+                    pushState();
+                } catch (Throwable ignored) {
+                }
+            }
+        }, "bigm-stats");
+        statsPoller.setDaemon(true);
+        statsPoller.start();
     }
 
     // ── State snapshot ───────────────────────────────────────────────────
@@ -135,6 +150,16 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
             json.fieldOpt("statusMessage", status.message());
             json.fieldOpt("progress", parseProgress(status.message()));
             json.fieldOpt("iconPath", iconPath);
+
+            // Per-app resource stats (live RAM/CPU when running)
+            if (isRunning && installed) {
+                SystemStats.App res = SystemStats.app(app.id(), dir);
+                json.field("cpuPercent", res.cpuPercent);
+                json.field("memMB", res.memMB);
+            } else {
+                json.field("cpuPercent", 0.0);
+                json.field("memMB", 0.0);
+            }
             json.closeObject();
         }
         json.closeArray();
@@ -176,6 +201,22 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         // True when the launcher has never been given its apps folder —
         // the UI shows a first-launch prompt when this is null.
         json.field("needsDefaultFolder", config.defaultInstallFolder() == null);
+
+        // System-wide stats (CPU, RAM, battery, model, uptime) — the System
+        // sheet and any resource display read from here.
+        SystemStats.Machine machine = SystemStats.machine();
+        json.object("system");
+        json.field("cpuPercent", machine.cpuPercent);
+        json.field("memUsedGB", machine.memUsedGB);
+        json.field("memTotalGB", machine.memTotalGB);
+        json.field("memPercent", machine.memPercent);
+        json.field("loadAvg", machine.loadAvg);
+        json.field("threadCount", machine.threadCount);
+        json.field("uptime", SystemStats.uptime());
+        json.field("model", SystemStats.modelName());
+        json.field("batteryPercent", SystemStats.batteryPercent());
+        json.field("batteryState", SystemStats.batteryState());
+        json.closeObject();
 
         // Diagnostics events (the sheet reads the last 100)
         json.array("events");

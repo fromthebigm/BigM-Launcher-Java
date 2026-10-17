@@ -28,6 +28,8 @@ struct CardModel: Codable, Identifiable {
     let statusMessage: String?
     let progress: Double?
     let iconPath: String?
+    let cpuPercent: Double?
+    let memMB: Double?
 }
 
 struct FilterModel: Codable, Identifiable {
@@ -41,6 +43,20 @@ struct SettingsModel: Codable {
     let themeKey: String
     let variant: String
     let defaultInstallFolder: String?
+}
+
+/// System-wide machine stats (CPU, RAM, battery, model, uptime).
+struct SystemModel: Codable {
+    let cpuPercent: Double
+    let memUsedGB: Double
+    let memTotalGB: Double
+    let memPercent: Double
+    let loadAvg: Double
+    let threadCount: Int
+    let uptime: String
+    let model: String
+    let batteryPercent: Int
+    let batteryState: String
 }
 
 struct StateSnapshot: Codable {
@@ -59,6 +75,7 @@ struct StateSnapshot: Codable {
     let settings: SettingsModel?
     let events: [String]?
     let needsDefaultFolder: Bool?
+    let system: SystemModel?
 }
 
 // MARK: - Action handler (C function pointer, registered by Java)
@@ -223,6 +240,7 @@ struct RootView: View {
             case .settings: SettingsSheet()
             case .diagnostics: DiagnosticsSheet()
             case .getApps: GetAppsSheet()
+            case .system: SystemSheet()
             }
         }
     }
@@ -349,6 +367,12 @@ struct SidebarView: View {
                                  alert: false,
                                  palette: store.palette, variant: store.variant) {
                     store.activeSheet = .diagnostics
+                }
+                SidebarActionRow(icon: "chart.bar.fill",
+                                 title: "System",
+                                 alert: false,
+                                 palette: store.palette, variant: store.variant) {
+                    store.activeSheet = .system
                 }
             }
             .padding(.horizontal, 10)

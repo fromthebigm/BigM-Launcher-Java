@@ -70,6 +70,30 @@ struct AppCardView: View {
                     .padding(.horizontal, 14)
                     .padding(.top, 4)
             }
+
+            // Live resource stats (only when running)
+            if card.state == .running {
+                if let cpu = card.cpuPercent, cpu > 0.1 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 8))
+                            .foregroundColor(.orange)
+                        Text(String(format: "%.1f%%", cpu))
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundColor(.orange.opacity(0.9))
+                        if let mem = card.memMB, mem > 10 {
+                            Image(systemName: "memorychip")
+                                .font(.system(size: 8))
+                                .foregroundColor(.blue)
+                            Text(String(format: "%.0f MB", mem))
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundColor(.blue.opacity(0.9))
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 3)
+                }
+            }
             if let progress = card.progress {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
