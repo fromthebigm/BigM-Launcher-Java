@@ -53,6 +53,7 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
                 if (dir != null) installDirs.put(app.id(), dir);
                 else installDirs.remove(app.id());
             }
+            renderSystemIcons();
             pushState();
             // Update sweep for installed apps
             for (Catalog.AppDef app : visibleApps()) {
@@ -367,6 +368,25 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
             }
             case "revealFile" -> revealFile(id);
             case "setLauncherIcon" -> setLauncherIcon(id);
+            case "setAppIcon" -> {
+                // Format: "appId|/path/to/app.bundle" — the per-card
+                // Change Icon… flow. Renders the picked app's icon into
+                // the per-app icon store (NOT the launcher's).
+                if (id != null && id.contains("|")) {
+                    int sep = id.indexOf('|');
+                    String appId = id.substring(0, sep);
+                    String appPath = id.substring(sep + 1);
+                    if (!appId.isBlank() && !appPath.isBlank()) {
+                        boolean ok = IconStore.applyCustomIcon(appId, Path.of(appPath));
+                        if (ok) {
+                            log("success", appId, "icon set from " + Path.of(appPath).getFileName());
+                        } else {
+                            log("error", appId, "could not render an icon from " + appPath);
+                        }
+                        pushState();
+                    }
+                }
+            }
             case "resetLauncherIcon" -> {
                 IconStore.resetLauncherIcon();
                 log("info", null, "launcher icon reset to the bundled preset");
@@ -518,6 +538,35 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         } catch (IOException failure) {
             log("error", appId, "launch failed: " + failure.getMessage());
         }
+    }
+
+    /** Render real app icons for installed apps that don't have one yet.
+     *  The old code had this in LauncherWindow (the SWT face) — the
+     *  SwiftUI face never called it, so no system icons ever rendered,
+     *  leaving every card with a generic emblem instead of the actual
+     *  app icon (Rigel's Weather icon, Chiaki's icon, etc). */
+    private void renderSystemIcons() {
+        for (Catalog.AppDef app : visibleApps()) {
+            if (IconStore.hasCustomIcon(app.id()) || IconStore.hasSystemIcon(app.id())) continue;
+            Path dir = installDirs.get(app.id());
+            if (dir == null) continue;
+            Path appBundle = findAppBundle(dir);
+            if (appBundle != null) {
+                IconStore.renderSystemIcon(app.id(), appBundle);
+            }
+        }
+    }
+
+    /** Locate the .app bundle to icon-render for this install. */
+    private static Path findAppBundle(Path installDir) {
+        try (var stream = Files.list(installDir)) {
+            for (Path child : stream.filter(p -> p.getFileName().toString().endsWith(".app"))
+                    .filter(Files::isDirectory).toList()) {
+                return child;
+            }
+        } catch (IOException ignored) {
+        }
+        return null;
     }
 
     private void quitApp(String appId) {

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LAUNCHER CARD — each card is a small work of art: ornamental frame with
@@ -216,7 +217,21 @@ struct AppCardView: View {
             }
             Divider()
             Button("Reveal in Finder") { onAction("reveal", card.id) }
-            Button("Change Icon…") { onAction("setLauncherIcon", card.id) }
+            Button("Change Icon…") {
+                // Open the native file picker, then dispatch a per-app icon
+                // change — the old code dispatched "setLauncherIcon" with a
+                // card ID as the path, which broke the launcher's own icon.
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.directoryURL = URL(fileURLWithPath: "/Applications")
+                panel.message = "Choose the app whose icon \(card.name) should use"
+                panel.begin { response in
+                    if response == .OK, let url = panel.url {
+                        onAction("setAppIcon", "\(card.id)|\(url.path)")
+                    }
+                }
+            }
             Divider()
             Button("Copy Name") {
                 NSPasteboard.general.clearContents()

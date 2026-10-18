@@ -330,8 +330,18 @@ void bigm_java_surface_darken_all(void) {
 __attribute__((visibility("default")))
 bool bigm_java_render_icon_variants(const char *appPath, const char *lightOut,
                                     const char *darkOut) {
+    if (!appPath) return false;
+    // AppKit drawing must happen on the main thread — Java's FFM call
+    // arrives on a worker thread, and NSImage lockFocus/NSWorkspace icon
+    // rendering silently returns empty images off-main.
+    if (![NSThread isMainThread]) {
+        __block bool result = false;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            result = bigm_java_render_icon_variants(appPath, lightOut, darkOut);
+        });
+        return result;
+    }
     @autoreleasepool {
-        if (!appPath) return false;
         NSString *path = [NSString stringWithUTF8String:appPath];
         NSImage *icon = [[NSWorkspace sharedWorkspace] iconForFile:path];
         if (!icon) return false;

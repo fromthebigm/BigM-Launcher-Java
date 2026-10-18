@@ -250,22 +250,6 @@ struct RootView: View {
                             }
                             .padding(20)
                         }
-
-                        // Activity ticker
-                        if let events = store.snapshot?.events,
-                           let latest = events.last {
-                            HStack(spacing: 6) {
-                                Circle().fill(Color.green).frame(width: 5, height: 5)
-                                Text(latest)
-                                    .font(.system(size: 9, design: .monospaced))
-                                    .foregroundColor(store.palette.chrome(store.variant).textMuted)
-                                    .lineLimit(1)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 4)
-                            .background(Color.black.opacity(0.15))
-                        }
                     }
                 }
             }
@@ -292,13 +276,28 @@ struct RootView: View {
         }
         .navigationTitle(store.snapshot?.windowTitle ?? "BigM")
         .sheet(item: $store.activeSheet) { kind in
-            switch kind {
-            case .updates: UpdatesSheet()
-            case .customize: CustomizeSheet()
-            case .settings: SettingsSheet()
-            case .diagnostics: DiagnosticsSheet()
-            case .getApps: GetAppsSheet()
-            case .system: SystemSheet()
+            Group {
+                switch kind {
+                case .updates: UpdatesSheet()
+                case .customize: CustomizeSheet()
+                case .settings: SettingsSheet()
+                case .diagnostics: DiagnosticsSheet()
+                case .getApps: GetAppsSheet()
+                case .system: SystemSheet()
+                }
+            }
+            .onAppear {
+                // Screenshot protection for sheets: SwiftUI creates a new
+                // NSWindow for each sheet presentation. The notification
+                // hook in hookAllWindowsForCaptureProtection should catch
+                // it, but SwiftUI's sheet windows sometimes skip the
+                // didBecomeKey/didBecomeMain notifications. This direct
+                // pass guarantees every sheet is protected.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    for window in NSApplication.shared.windows {
+                        window.sharingType = .none
+                    }
+                }
             }
         }
         .onAppear {
@@ -352,7 +351,9 @@ struct RootView: View {
     }
 
     private func updateDockBadge(_ count: Int) {
-        NSApplication.shared.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
+        // Dock badge removed per owner request — the running-count badge
+        // on the Dock icon read as a red notification dot.
+        NSApplication.shared.dockTile.badgeLabel = nil
     }
 
     private var filteredCards: [CardModel] {
