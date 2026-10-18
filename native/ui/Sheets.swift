@@ -678,8 +678,11 @@ func pickFolder(_ onPick: @escaping (String) -> Void) {
 
 func pickApp(_ onPick: @escaping (String) -> Void) {
     let panel = NSOpenPanel()
+    // .app bundles are packages — canChooseFiles must be true or
+    // every .app in /Applications is greyed out and unselectable.
     panel.canChooseDirectories = true
-    panel.canChooseFiles = false
+    panel.canChooseFiles = true
+    panel.allowsMultipleSelection = false
     panel.directoryURL = URL(fileURLWithPath: "/Applications")
     panel.message = "Choose the app whose icon to use"
     panel.begin { response in

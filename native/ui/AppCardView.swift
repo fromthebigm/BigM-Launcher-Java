@@ -19,10 +19,11 @@ struct AppCardView: View {
     @State private var showResources = false  // flash → fade
 
     private var chrome: ThemePalette.ChromeColors { palette.chrome(variant) }
+    private var accentR: Double { Double(card.accentRed) / 255.0 }
+    private var accentG: Double { Double(card.accentGreen) / 255.0 }
+    private var accentB: Double { Double(card.accentBlue) / 255.0 }
     private var accent: Color {
-        Color(.sRGB, red: Double(card.accentRed) / 255.0,
-              green: Double(card.accentGreen) / 255.0,
-              blue: Double(card.accentBlue) / 255.0, opacity: 1.0)
+        Color(.sRGB, red: accentR, green: accentG, blue: accentB, opacity: 1.0)
     }
 
     var body: some View {
@@ -203,39 +204,60 @@ struct AppCardView: View {
             onAction(card.state == .running ? "quit" : "launch", card.id)
         }
         .contextMenu {
-            Button("Launch") { onAction("launch", card.id) }
-            if card.state == .running {
-                Button("Quit") { onAction("quit", card.id) }
+            cardContextMenu
+        }
+    }
+
+    // MARK: - Context menu
+
+    @ViewBuilder
+    private var cardContextMenu: some View {
+        Button("Launch") { onAction("launch", card.id) }
+        if card.state == .running {
+            Button("Quit") { onAction("quit", card.id) }
+        }
+        Divider()
+        if card.state == .updateAvailable {
+            Button("Update Now") { onAction("update", card.id) }
+        }
+        Button("Check for Update") { onAction("checkOne", card.id) }
+        if !card.installed {
+            Button("Install…") { onAction("install", card.id) }
+        }
+        Divider()
+        Button("Reveal in Finder") { onAction("reveal", card.id) }
+        Button("Change Icon…") {
+            // Open the native file picker. On macOS, .app bundles are
+            // PACKAGES (files), not plain directories — setting only
+            // canChooseDirectories=true makes every .app in
+            // /Applications greyed out and unselectable. We allow both
+            // files and directories so .app bundles are clickable.
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = true
+            panel.allowsMultipleSelection = false
+            panel.directoryURL = URL(fileURLWithPath: "/Applications")
+            panel.message = "Choose the app whose icon \(card.name) should use"
+            panel.begin { response in
+                guard response == .OK, let url = panel.url else { return }
+                onAction("setAppIcon", "\(card.id)|\(url.path)")
             }
-            Divider()
-            if card.state == .updateAvailable {
-                Button("Update Now") { onAction("update", card.id) }
-            }
-            Button("Check for Update") { onAction("checkOne", card.id) }
-            if !card.installed {
-                Button("Install…") { onAction("install", card.id) }
-            }
-            Divider()
-            Button("Reveal in Finder") { onAction("reveal", card.id) }
-            Button("Change Icon…") {
-                // Open the native file picker, then dispatch a per-app icon
-                // change — the old code dispatched "setLauncherIcon" with a
-                // card ID as the path, which broke the launcher's own icon.
-                let panel = NSOpenPanel()
-                panel.canChooseDirectories = true
-                panel.canChooseFiles = false
-                panel.directoryURL = URL(fileURLWithPath: "/Applications")
-                panel.message = "Choose the app whose icon \(card.name) should use"
-                panel.begin { response in
-                    if response == .OK, let url = panel.url {
-                        onAction("setAppIcon", "\(card.id)|\(url.path)")
-                    }
-                }
-            }
-            Divider()
-            Button("Copy Name") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(card.name, forType: .string)
+        }
+        Divider()
+        Button("Copy Name") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(card.name, forType: .string)
+        }
+        Divider()
+        Button("Delete \(card.name)…", role: .destructive) {
+            let alert = NSAlert()
+            alert.messageText = "Delete \(card.name)?"
+            alert.informativeText = "This removes \(card.name) from your library. The app's files on disk are not deleted."
+            alert.addButton(withTitle: "Remove Card")
+            alert.addButton(withTitle: "Cancel")
+            alert.alertStyle = .warning
+            if alert.runModal() == .alertFirstButtonReturn {
+                onAction("deleteApp", card.id)
             }
         }
     }

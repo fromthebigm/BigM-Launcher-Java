@@ -387,6 +387,24 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
                     }
                 }
             }
+            case "deleteApp" -> {
+                // Remove a launcher card from the library. Custom apps are
+                // fully deleted (config + icons + stats); catalog apps have
+                // their override/icon/note cleared and can be re-added via
+                // Get Apps. Files on disk are never touched.
+                if (id != null && !id.isBlank()) {
+                    config.removeApp(id);
+                    IconStore.resetCustomIcon(id);
+                    config.setAppNote(id, null);
+                    config.setFavorite(id, false);
+                    config.setInstallDir(id, null);
+                    installDirs.remove(id);
+                    running.remove(id);
+                    startedAt.remove(id);
+                    log("info", id, "removed from library");
+                    pushState();
+                }
+            }
             case "resetLauncherIcon" -> {
                 IconStore.resetLauncherIcon();
                 log("info", null, "launcher icon reset to the bundled preset");

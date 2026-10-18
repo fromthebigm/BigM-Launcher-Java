@@ -191,6 +191,48 @@ public final class LauncherConfig {
         save();
     }
 
+    /** Remove a custom app (or clear all overrides for a catalog app).
+     *  Custom apps are fully deleted from the additionalApps list; catalog
+     *  apps keep their entry but have per-machine overrides cleaned. */
+    public void removeApp(String appId) {
+        int count = readInt("additionalApps.count", 0);
+        // Find and remove the entry if it's a custom app
+        int found = -1;
+        for (int i = 0; i < count; i++) {
+            String prefix = "additionalApps." + i + ".";
+            if (appId.equals(props.getProperty(prefix + "id"))) {
+                found = i;
+                break;
+            }
+        }
+        if (found >= 0) {
+            // Shift remaining entries down
+            for (int i = found; i < count - 1; i++) {
+                String from = "additionalApps." + (i + 1) + ".";
+                String to = "additionalApps." + i + ".";
+                for (String key : new String[]{"id", "repository", "assetPattern", "marker",
+                        "preserve", "summary", "displayName", "category", "tintHex",
+                        "symbol", "backend", "target", "args"}) {
+                    String value = props.getProperty(from + key);
+                    if (value != null) props.setProperty(to + key, value);
+                    else props.remove(to + key);
+                }
+            }
+            // Clear the last entry
+            String lastPrefix = "additionalApps." + (count - 1) + ".";
+            for (String key : new String[]{"id", "repository", "assetPattern", "marker",
+                    "preserve", "summary", "displayName", "category", "tintHex",
+                    "symbol", "backend", "target", "args"}) {
+                props.remove(lastPrefix + key);
+            }
+            props.setProperty("additionalApps.count", Integer.toString(count - 1));
+        }
+        // Always clear per-machine overrides (works for both custom and catalog apps)
+        props.remove("app." + appId + ".installDir");
+        props.remove("app." + appId + ".iconMode");
+        save();
+    }
+
     private int readInt(String key, int fallback) {
         try { return Integer.parseInt(props.getProperty(key, String.valueOf(fallback))); }
         catch (NumberFormatException e) { return fallback; }
