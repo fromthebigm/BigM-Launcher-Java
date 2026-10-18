@@ -265,7 +265,7 @@ struct AppCardView: View {
             Circle()
                 .strokeBorder(accent.opacity(0.35), lineWidth: 1)
             if let iconPath = card.iconPath,
-               let nsImage = NSImage(contentsOfFile: iconPath) {
+               let nsImage = IconCache.shared.image(for: iconPath) {
                 Image(nsImage: nsImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -484,5 +484,32 @@ struct CategoryEmblem: View {
             }
             .stroke(accent.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
         }
+    }
+}
+
+// MARK: - Icon Cache (avoid disk reads on every card render)
+
+/// NSImage cache keyed by file path. The old code called
+/// `NSImage(contentsOfFile:)` on EVERY SwiftUI body evaluation — for 9 apps
+/// with icons, that was 9 disk reads per state push (every 10s), making the
+/// app feel sluggish and eating CPU for no reason.
+final class IconCache {
+    static let shared = IconCache()
+    private var cache: [String: NSImage] = [:]
+    private let lock = NSLock()
+
+    func image(for path: String) -> NSImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = cache[path] { return cached }
+        guard let img = NSImage(contentsOfFile: path) else { return nil }
+        cache[path] = img
+        return img
+    }
+
+    func invalidate() {
+        lock.lock()
+        defer { lock.unlock() }
+        cache.removeAll()
     }
 }

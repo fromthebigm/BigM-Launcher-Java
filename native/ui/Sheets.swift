@@ -240,36 +240,6 @@ struct SettingsSheet: View {
     var body: some View {
         SheetScaffold(title: "Settings") {
             if let settings = store.snapshot?.settings {
-                SheetCard(title: "Scenery", icon: "mountain.2.fill") {
-                    HStack {
-                        Text("Theme")
-                            .font(.system(size: 12, design: .rounded))
-                            .foregroundColor(chrome.textMuted)
-                        Spacer()
-                        Picker("", selection: Binding(
-                            get: { settings.themeKey },
-                            set: { store.dispatch("setTheme", id: $0) })) {
-                            ForEach(ThemePalette.all, id: \.key) { theme in
-                                Text(theme.title).tag(theme.key)
-                            }
-                        }
-                        .frame(width: 180)
-                    }
-                    HStack {
-                        Text("Time of day")
-                            .font(.system(size: 12, design: .rounded))
-                            .foregroundColor(chrome.textMuted)
-                        Spacer()
-                        Picker("", selection: Binding(
-                            get: { settings.variant },
-                            set: { store.dispatch("setVariant", id: $0) })) {
-                            Text("Auto").tag("auto")
-                            Text("Day").tag("day")
-                            Text("Night").tag("night")
-                        }
-                        .frame(width: 180)
-                    }
-                }
 
                 SheetCard(title: "Apps Folder (Scan + Install)", icon: "folder.fill") {
                     Text("The one folder BigM uses for everything: auto-scanning for existing launchers and installing new ones. Apps install into subfolders inside it.")
@@ -330,10 +300,45 @@ struct CustomizeSheet: View {
 
     var body: some View {
         SheetScaffold(title: "Customize") {
-            Text("Each theme paints the whole world — mountains, river, forest, cabin — in its own light. Day and night variants keep the same topography.")
+            Text("Each theme paints the whole world in its own light. Four time-of-day variants — dawn, day, dusk, night — keep the same topography with different lighting.")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundColor(chrome.textMuted)
 
+            // Time of day (variant) picker — all four options
+            SheetCard(title: "Time of Day", icon: "clock.fill") {
+                HStack(spacing: 10) {
+                    ForEach([("auto", "Auto", "clock"),
+                             ("dawn", "Dawn", "sunrise"),
+                             ("day", "Day", "sun.max"),
+                             ("dusk", "Dusk", "sunset"),
+                             ("night", "Night", "moon")], id: \.0) { key, label, icon in
+                        Button {
+                            store.dispatch("setVariant", id: key)
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: icon)
+                                    .font(.system(size: 14))
+                                Text(label)
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                            }
+                            .foregroundColor(isVariantSelected(key)
+                                             ? store.palette.accent
+                                             : chrome.textMuted)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(isVariantSelected(key)
+                                          ? store.palette.accent.opacity(0.12)
+                                          : Color.white.opacity(0.03))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            // Theme grid with live scene previews
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
                 ForEach(ThemePalette.all, id: \.key) { theme in
                     ThemeThumb(theme: theme,
@@ -343,6 +348,7 @@ struct CustomizeSheet: View {
                 }
             }
 
+            // Launcher Dock icon
             SheetCard(title: "Launcher Dock Icon", icon: "app.badge.fill") {
                 HStack {
                     Text("Pick any app in /Applications — its icon becomes the launcher's Dock tile.")
@@ -358,6 +364,10 @@ struct CustomizeSheet: View {
                 }
             }
         }
+    }
+
+    private func isVariantSelected(_ key: String) -> Bool {
+        (store.snapshot?.settings?.variant ?? "auto") == key
     }
 
     private var chrome: ThemePalette.ChromeColors { store.palette.chrome(store.variant) }

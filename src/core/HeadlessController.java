@@ -75,18 +75,19 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         selfCheck.start();
 
         // Resource stats poller — every 10 seconds, only when the state
-        // actually changed (hash compare). The old 5-second unconditional
-        // push caused the UI lag the owner reported: every push spawned
-        // multiple shell processes AND triggered a full SwiftUI re-render.
+        // actually changed AND only when apps are running. Spawning `ps aux`
+        // on a machine with zero running launchers is pure waste.
         Thread statsPoller = new Thread(() -> {
             while (true) {
                 try { Thread.sleep(10000); } catch (InterruptedException e) { return; }
                 try {
-                    // Run the batch ps in the background so it never blocks
-                    SystemStats.batchApps(installDirs);
-                    // Only push if the state JSON actually differs
+                    // Only run the batch ps when at least one app is running
+                    if (!running.isEmpty()) {
+                        SystemStats.batchApps(installDirs);
+                    }
                     String json = buildStateJson();
                     if (!json.equals(lastPushedJson)) {
+                        lastPushedJson = json;
                         SwiftUIHost.pushState(json);
                     }
                 } catch (Throwable ignored) {
@@ -261,8 +262,9 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
         json.closeObject();
 
         // BigM's own resource usage — real RSS/CPU from ps, not the JVM's
-        // misleading numbers (the OperatingSystemMXBean free-memory on
-        // macOS is nearly zero because macOS caches aggressively).
+        // misleading numbers. Only gathered when stats are fresh (the
+        // statsPoller refreshes every 10s; we don't spawn `ps` on every
+        // button click).
         SystemStats.Self selfStats = SystemStats.self();
         json.object("selfStats");
         json.field("cpuPercent", selfStats.cpuPercent);

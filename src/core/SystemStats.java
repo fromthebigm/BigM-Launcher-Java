@@ -152,7 +152,10 @@ public final class SystemStats {
 
     public static Self self() {
         long now = System.currentTimeMillis();
-        if (cachedSelf != null && now - cachedSelf.timestamp < 3000) {
+        // 10-second cache — self() is called from buildStateJson() which runs
+        // on EVERY pushState (button clicks, etc). Spawning `ps` on every
+        // click was making the UI feel laggy and eating CPU.
+        if (cachedSelf != null && now - cachedSelf.timestamp < 10000) {
             return cachedSelf;
         }
         Self s = new Self();

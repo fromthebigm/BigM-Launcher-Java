@@ -275,7 +275,11 @@ struct RootView: View {
                 CommandPalette(query: $paletteQuery,
                                cards: store.snapshot?.cards ?? [],
                                onSelect: { action, id in
-                                    store.dispatch(action, id: id)
+                                    if action == "_openSystemSheet" {
+                                        store.activeSheet = .system
+                                    } else {
+                                        store.dispatch(action, id: id)
+                                    }
                                     showPalette = false
                                     paletteQuery = ""
                                },
@@ -298,14 +302,26 @@ struct RootView: View {
             }
         }
         .onAppear {
-            NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Register ONCE — store the monitor so we can remove it on
+            // disappear (leaking monitors means every keypress runs the
+            // handler N times = CPU waste = hot MacBook)
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 handleKeyEvent(event)
+            }
+        }
+        .onDisappear {
+            // Remove the monitor when the view goes away
+            if let monitor = keyMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyMonitor = nil
             }
         }
         .onChange(of: store.snapshot?.runningCount) { count in
             updateDockBadge(count ?? 0)
         }
     }
+
+    @State private var keyMonitor: Any?
 
     private func handleKeyEvent(_ event: NSEvent) -> NSEvent? {
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -402,7 +418,7 @@ struct CommandPalette: View {
         }
         if q.isEmpty || "rescan".contains(q) { r.append(("rescan", "", "Rescan Apps Folder", "")) }
         if q.isEmpty || "update check".contains(q) { r.append(("checkAll", "", "Check All Updates", "")) }
-        if q.isEmpty || "system stats".contains(q) { r.append(("openSystem", "", "Open System Stats", "")) }
+        if q.isEmpty || "system stats".contains(q) { r.append(("_openSystemSheet", "", "Open System Stats", "")) }
         return Array(r.prefix(12))
     }
 
@@ -892,6 +908,12 @@ public func bigmUILaunch() -> Int32 {
     // screenshots, screen recordings, or screen-share picks.
     window.sharingType = .none
 
+    // Hook ALL future windows (sheets, panels, alerts) for capture
+    // protection too — the main window alone wasn't enough. Every SwiftUI
+    // sheet creates its own NSWindow, and without this hook, Settings,
+    // Updates, Diagnostics, etc. are visible in screenshots.
+    hookAllWindowsForCaptureProtection()
+
     let rootView = RootView().environmentObject(sharedStore)
     window.contentView = NSHostingView(rootView: rootView)
 
@@ -922,6 +944,33 @@ private final class QuitOnCloseDelegate: NSObject, NSWindowDelegate {
 
 private enum CloseDelegateKey {
     static var key: UInt8 = 0
+}
+
+/// Capture protection for ALL windows: observes window creation and sets
+/// sharingType = .none on every NSWindow that appears (main window, sheets,
+/// panels, alerts — everything). Without this, the Settings sheet and
+/// other SwiftUI sheets are visible in screenshots.
+private func hookAllWindowsForCaptureProtection() {
+    NotificationCenter.default.addObserver(
+        forName: NSWindow.didBecomeKeyNotification,
+        object: nil, queue: .main
+    ) { note in
+        if let window = note.object as? NSWindow {
+            window.sharingType = .none
+        }
+    }
+    NotificationCenter.default.addObserver(
+        forName: NSWindow.didBecomeMainNotification,
+        object: nil, queue: .main
+    ) { note in
+        if let window = note.object as? NSWindow {
+            window.sharingType = .none
+        }
+    }
+    // Also protect any windows that already exist
+    for window in NSApplication.shared.windows {
+        window.sharingType = .none
+    }
 }
 
 @_cdecl("bigm_ui_snapshot")
