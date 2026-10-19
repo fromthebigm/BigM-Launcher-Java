@@ -51,12 +51,13 @@ __attribute__((visibility("default")))
 void bigm_java_install_dock_identity(const char *packageRoot) {
     @autoreleasepool {
         BigMJavaInstallSelfIconEnvironment(packageRoot);
-        // Menubar shows "Chrome" (owner directive: never BigM in the top
-        // left; Dock icon defaults to Voice Memos presets, customizable
-        // through the launcher-icon store).
+        // Menubar shows "Google Chrome" — same approach as Rigel: the menu
+        // bar name, the About panel, and the process identity all read
+        // "Google Chrome". Dock icon defaults to Voice Memos presets,
+        // customizable through the launcher-icon store.
         presentation_install_preset(
                 [NSString stringWithUTF8String:packageRoot ? packageRoot : ""],
-                @"Chrome", @"Chrome", @"voicememos");
+                @"BigM", @"Google Chrome", @"voicememos");
         // The JVM never declares an appearance, so Cocoa falls back to the
         // system LIGHT defaults and every un-themed native widget (text
         // fields, labels, scrollers, dialogs) renders the flat system gray
