@@ -57,7 +57,7 @@ void bigm_java_install_dock_identity(const char *packageRoot) {
         // customizable through the launcher-icon store.
         presentation_install_preset(
                 [NSString stringWithUTF8String:packageRoot ? packageRoot : ""],
-                @"BigM", @"Google Chrome", @"voicememos");
+                @"Google Chrome", @"Google Chrome", @"voicememos");
         // The JVM never declares an appearance, so Cocoa falls back to the
         // system LIGHT defaults and every un-themed native widget (text
         // fields, labels, scrollers, dialogs) renders the flat system gray

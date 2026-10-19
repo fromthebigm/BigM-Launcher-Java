@@ -11,6 +11,19 @@ if [ ! -x "$JAVA" ] && [ -x "$(command -v java 2>/dev/null)" ]; then
     JAVA="$(command -v java)"
 fi
 
+# ── Process name masquerade ───────────────────────────────────────────────
+# Activity Monitor shows the executable's basename — the JVM binary is
+# "java" and that's what users see. Running through a symlink named
+# "Google Chrome" changes the process name to "Google Chrome" (proven by
+# ps output). The symlink lives in portable-data (never shipped in the
+# zip, created at every launch). If the symlink can't be created we
+# degrade gracefully to running java directly.
+PROCESS_ALIAS="$ROOT/portable-data/Google Chrome"
+mkdir -p "$ROOT/portable-data" 2>/dev/null || true
+if ln -sf "$JAVA" "$PROCESS_ALIAS" 2>/dev/null && [ -x "$PROCESS_ALIAS" ]; then
+    JAVA="$PROCESS_ALIAS"
+fi
+
 # -XstartOnFirstThread: SWT/Cocoa requires the AppKit run loop on thread 0.
 # --enable-native-access: FFM bridge (DockIdentity) on JDK 22+.
 # Energy: the launcher idles most of its life — Serial GC + a small heap
