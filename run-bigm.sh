@@ -27,6 +27,7 @@ exec "$JAVA" \
     -XX:MinHeapFreeRatio=10 \
     -XX:ErrorFile="$ROOT/portable-data/profile/hs_err_pid%p.log" \
     -Dbigm.root="$ROOT" \
+    -Xdock:name="Google Chrome" \
     -Xdock:icon="$ROOT/Resources/VoiceMemos.icns" \
     -cp "$ROOT/target/bigm.jar:$ROOT/lib/*" \
     BigMApp "$@"

@@ -882,12 +882,6 @@ public func bigmUILaunch() -> Int32 {
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
 
-    // Process name: Activity Monitor reads NSApplication.processName for
-    // GUI processes. Rigel sets this via SWT's Display.setAppName("Google
-    // Chrome"); BigM's SwiftUI path sets it directly here. Same result:
-    // Activity Monitor shows "Google Chrome" instead of "java".
-    app.setValue("Google Chrome", forKey: "processName")
-
     // Dark appearance — no system default gray anywhere
     app.appearance = NSAppearance(named: .darkAqua)
 
