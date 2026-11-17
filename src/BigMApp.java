@@ -132,6 +132,7 @@ public final class BigMApp {
                 // Exercised surfaces: the main window, then every sheet —
                 // catches paint/listener exceptions in one scripted pass.
                 Shell[] sheets = new Shell[5];
+                Shell[] extraFaces = new Shell[2];
                 display.timerExec(800, () -> {
                     new ui.UpdatesSheet(window).open();
                     System.out.println("ui-smoke: updates sheet ok");
@@ -151,6 +152,16 @@ public final class BigMApp {
                 display.timerExec(3200, () -> {
                     new ui.DiagnosticsSheet(window).open();
                     System.out.println("ui-smoke: diagnostics sheet ok");
+                });
+                display.timerExec(3400, () -> {
+                    new ui.SystemSheet(window).open();
+                    extraFaces[0] = display.getActiveShell();
+                    System.out.println("ui-smoke: system sheet ok");
+                });
+                display.timerExec(3700, () -> {
+                    new ui.CommandPalette(window).open();
+                    extraFaces[1] = display.getActiveShell();
+                    System.out.println("ui-smoke: command palette ok");
                 });
                 display.timerExec(4200, () -> {
                     // Layout audit: print every shell's control tree with
@@ -197,6 +208,7 @@ public final class BigMApp {
                 });
                 display.timerExec(5600, () -> {
                     for (Shell s : sheets) if (s != null && !s.isDisposed()) s.dispose();
+                    for (Shell s : extraFaces) if (s != null && !s.isDisposed() && s != window.shell()) s.dispose();
                     // Exercise the real close path: dispose the shell (fires
                     // the dispose listener + shutdown hooks), let the event
                     // loop drain, then dispose the display. A bare
