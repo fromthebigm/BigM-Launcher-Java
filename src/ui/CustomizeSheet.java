@@ -65,6 +65,25 @@ public final class CustomizeSheet extends SheetShell {
             buildSceneCell(grid, theme, sheet);
         }
 
+        // ── Time of day ── (Swift "Time of Day" card)
+        Composite dayCard = card(body, "Time of Day", Glass.Glyph.INFO, palette.accent());
+        Composite variants = new Composite(dayCard, SWT.NO_BACKGROUND);
+        variants.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+        GridLayout vl = new GridLayout(5, true);
+        vl.horizontalSpacing = 8;
+        vl.marginWidth = 0; vl.marginHeight = 0;
+        variants.setLayout(vl);
+        for (String[] pair : new String[][]{{"auto", "Auto"}, {"dawn", "Dawn"},
+                {"day", "Day"}, {"dusk", "Dusk"}, {"night", "Night"}}) {
+            final String key = pair[0];
+            GlassButton b = new GlassButton(variants, palette, pair[1], GlassButton.Style.TOOL);
+            b.addListener(SWT.Selection, e -> {
+                window.config().setUiVariant(key);
+                palette.setVariant(key);
+                repaintAll(sheet);
+            });
+        }
+
         // ── Background style ── (painted toggle rows, not native radios:
         // Cocoa paints an opaque system-default plate under native Buttons,
         // which read as the gray slab over the scene)
