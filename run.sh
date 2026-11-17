@@ -28,7 +28,6 @@ export CFFIXED_USER_HOME="$PORTABLE_HOME"
 # to find a local java runtime" — same discipline as Rigel's launchers).
 chmod -f +x "$ROOT"/*.sh 2>/dev/null || true
 chmod -f +x "$ROOT/jdk/Contents/Home/bin/"* 2>/dev/null || true
-chmod -f +x "$ROOT/native/"*.dylib 2>/dev/null || true
 xattr -dr com.apple.quarantine "$ROOT" 2>/dev/null || true
 
 # ── Detach from the invoker's lifetime ────────────────────────────────────

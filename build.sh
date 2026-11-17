@@ -72,15 +72,5 @@ mv -f "$JAR_TMP" "$ROOT/target/bigm.jar"
 print "Built $ROOT/target/bigm.jar"
 print "Bundled classes: $(find "$CLASSES" -name '*.class' | wc -l | tr -d ' ') class files"
 
-# The presentation-identity dylib (Google Chrome menu name + Voice Memos
-# presets) is built from native/bigm_identity.m whenever absent or stale.
-if [[ "$ROOT/native/bigm_identity.m" -nt "$ROOT/native/bigm_identity.dylib" \
-      || ! -f "$ROOT/native/bigm_identity.dylib" ]]; then
-    clang -x objective-c -dynamiclib \
-        -o "$ROOT/native/bigm_identity.dylib" \
-        "$ROOT/native/bigm_identity.m" \
-        -fobjc-arc -fmodules -mmacosx-version-min=14.0 \
-        -framework Foundation -framework AppKit
-    codesign --force --sign - "$ROOT/native/bigm_identity.dylib"
-    print "Built $ROOT/native/bigm_identity.dylib"
-fi
+# No custom dylibs are built: the face is pure Java/SWT and the Dock identity
+# is applied through public SWT APIs (ui.NativelessIdentity).

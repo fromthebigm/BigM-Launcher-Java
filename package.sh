@@ -25,21 +25,8 @@ runtime() (
           "$ROOT/lib" \
           "$ROOT/Resources" \
           "$PAYLOAD/"
-    # The identity dylib ships WITHOUT its source (port-zip rule: loader
-    # sources and the shared header are compiled in, never readable shippables).
-    # The Voice Memos preset pair must sit BESIDE the dylib (the shared header
-    # resolves <preset>-light.png/-dark.png next to the dladdr'd library).
-    mkdir -p "$PAYLOAD/native"
-    cp "$ROOT/native/bigm_identity.dylib" "$PAYLOAD/native/"
-    cp "$ROOT/native/voicememos-light.png" "$ROOT/native/voicememos-dark.png" "$PAYLOAD/native/"
-    # The SwiftUI face — the primary UI dylib. Hosted inside the Java
-    # process via FFM; Java remains the process, Swift renders the window.
-    # Sources stay in the tree (never shipped readable); only the compiled
-    # dylib + its resources travel.
-    mkdir -p "$PAYLOAD/native/ui"
-    if [[ -f "$ROOT/native/ui/libBigMUI.dylib" ]]; then
-        cp "$ROOT/native/ui/libBigMUI.dylib" "$PAYLOAD/native/ui/"
-    fi
+    # No native/ directory ships: there are no custom dylibs. The Voice Memos
+    # preset pair in Resources/presets is used by the pure-Java Dock identity.
     # The dev symlink must become a real copy in the payload.
     if [[ -L "$ROOT/jdk" ]]; then
         rm -rf "$PAYLOAD/jdk-copy-pending" 2>/dev/null

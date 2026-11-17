@@ -8,12 +8,11 @@ import java.util.Map;
 /**
  * Custom icon store (the Swift LauncherIconStore): rendered light + dark
  * PNGs under Support/icons/<appID>-{light,dark}.png, source images pulled
- * from any picked app via the native dylib (NSWorkspace under forced
- * appearances). The launcher's own icon uses appID "launcher"; its files
- * are read by the dylib at install time (and re-pointed live through
- * DockIdentity.setCustomIcon), while per-app icons ride into launched
- * children as BIGM_PRESENTATION_ICON_* env (each hardened launcher reads
- * them through the same shared presentation header).
+ * from any picked app with macOS command-line tools (no custom dylib).
+ * The launcher's own icon uses appID "launcher"; its files are applied live
+ * through ui.NativelessIdentity (SWT TaskBar), while per-app icons ride into
+ * launched children as BIGM_PRESENTATION_ICON_* env (each hardened launcher
+ * reads them through the same shared presentation header).
  */
 public final class IconStore {
 
@@ -44,12 +43,11 @@ public final class IconStore {
     }
 
     /** Render the picked app's current icon into the store. Returns false
-     *  when the dylib can't render it. */
+     *  when the system tools can't render it. */
     public static boolean applyCustomIcon(String appId, Path appBundle) {
         Path light = icon(appId, false);
         Path dark = icon(appId, true);
-        return DockIdentity.renderIconVariants( // core package: same package, direct ref
-                appBundle.toString(), light.toString(), dark.toString());
+        return JavaIconRenderer.render(appBundle.toString(), light, dark);
     }
 
     public static void resetCustomIcon(String appId) {
@@ -88,19 +86,14 @@ public final class IconStore {
 
     /** Apply (or reset) the running launcher's Dock icon live. */
     public static void applyLauncherIcon() {
-        if (hasCustomIcon(LAUNCHER_ID)) {
-            DockIdentity.setCustomIcon(icon(LAUNCHER_ID, false).toString(),
-                    icon(LAUNCHER_ID, true).toString(), launcherMode().key());
-        } else {
-            DockIdentity.setCustomIcon(null, null, null);
-        }
+        ui.NativelessIdentity.applyLauncherIcon();
     }
 
     public static void resetLauncherIcon() {
         resetCustomIcon(LAUNCHER_ID);
         try { Files.deleteIfExists(iconsDirectory().resolve("launcher.mode")); }
         catch (IOException ignored) {}
-        DockIdentity.setCustomIcon(null, null, null);
+        ui.NativelessIdentity.applyLauncherIcon();
     }
 
     // ── System icon rendering for installed apps (cache under Support/icons/system) ──
@@ -128,8 +121,7 @@ public final class IconStore {
             Files.deleteIfExists(light);
             Files.deleteIfExists(dark);
         } catch (IOException ignored) {}
-        boolean ok = DockIdentity.renderIconVariants(
-                target.toString(), light.toString(), dark.toString());
+        boolean ok = JavaIconRenderer.render(target.toString(), light, dark);
         // Guard: a "successful" render that produced empty files still shows
         // a broken/blocked icon — verify both files exist AND have content.
         if (!ok) return null;

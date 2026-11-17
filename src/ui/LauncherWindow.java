@@ -114,6 +114,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         this.stats = new PlayStats();
         this.palette = new UiPalette(display);
         this.palette.setTheme(config.uiAccent());
+        this.palette.setVariant(config.uiVariant());
         this.tints = new Glass.TintCache(display);
         this.updates = new UpdateManager(catalog, this);
         updates.state().add(this);
@@ -1082,7 +1083,6 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         }
         ask.pack();
         ask.open();
-        core.DockIdentity.applySurfaceDarken();
         while (!ask.isDisposed()) {
             if (!display.readAndDispatch()) display.sleep();
         }
@@ -1338,6 +1338,9 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         if (!ProductGate.isActivated()) {
             if (!promptForKey()) return;
         }
+        if (config.defaultInstallFolder() == null) {
+            new FirstLaunchPrompt(this).open();
+        }
         openWithoutGate();
     }
 
@@ -1345,8 +1348,6 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
      *  harness (CI probe) and by open() after a successful activation. */
     public void openWithoutGate() {
         shell.open();
-        core.DockIdentity.applySurfaceDarken();
-        core.DockIdentity.applyCaptureProtection();
         log("info", null, "BigM (Java) opened; " + visibleApps().size() + " catalog apps");
         while (!shell.isDisposed()) {
             if (!display.readAndDispatch()) display.sleep();
@@ -1412,7 +1413,6 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
             }
         });
         gate.open();
-        core.DockIdentity.applySurfaceDarken();
         while (!gate.isDisposed()) {
             if (!display.readAndDispatch()) display.sleep();
         }

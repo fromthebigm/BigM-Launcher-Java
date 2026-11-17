@@ -56,63 +56,66 @@ public final class BigMApp {
         if (argList.contains("--self-update-e2e")) { System.exit(selfUpdateE2E()); return; }
         if (argList.contains("--icons-e2e")) { System.exit(iconsE2E()); return; }
 
-        // ── SwiftUI face ─────────────────────────────────────────────────
-        // The primary UI: a Swift dylib hosting the window inside this Java
-        // process. Java stays the process (launch tickets, update pipeline,
-        // catalog — all the battle-tested core). Swift renders the face:
-        // the Nightwood scene, ornate cards, spring hover — no SWT anywhere,
-        // no gray OS-default background, native dark appearance.
-        boolean swiftUi = !argList.contains("--ui=swt");
+        // ── No-dylib face ─────────────────────────────────────────────────
+        // The SwiftUI dylib and the presentation-identity dylib are gone.
+        // The face is the pure Java/SWT port of the same Nightwood design;
+        // Dock/menu identity is applied by ui.NativelessIdentity through
+        // public SWT APIs (TaskBar / Display.setAppName), with no FFM bridge.
 
-        core.DockIdentity.install();
-        core.DockIdentity.apply();
-
-        if (swiftUi) {
-            try {
-                core.Catalog catalog = core.Catalog.load();
-                core.HeadlessController controller = new core.HeadlessController(catalog);
-
-                if (core.SwiftUIHost.install(controller::handleAction)) {
-                    System.err.println("[bigm] SwiftUI face loaded — taking over");
-
-                    // --swift-shot [path] [full] renders the face to a PNG
-                    // and exits (visual verification without screen perms).
-                    // "full" renders the whole UI (sidebar + cards + scene).
-                    int shotAt = argList.indexOf("--swift-shot");
-                    if (shotAt >= 0) {
-                        controller.start();
-                        // Pump the AppKit run loop so the queued state
-                        // pushes actually decode (no NSApp.run here).
-                        core.SwiftUIHost.pump(12.0);
-                        String path = shotAt + 1 < argList.size()
-                                ? argList.get(shotAt + 1)
-                                : "/tmp/bigm-swift-scene.png";
-                        boolean full = argList.contains("--swift-full");
-                        boolean ok = core.SwiftUIHost.snapshot(path, full);
-                        System.out.println("swift-shot: " + (ok ? "wrote " + path : "FAILED"));
-                        System.exit(ok ? 0 : 2);
-                        return;
-                    }
-
-                    controller.start();
-                    core.SwiftUIHost.launch();   // NEVER RETURNS — Swift owns the run loop
-                    return;
-                }
-                System.err.println("[bigm] SwiftUI dylib not found — falling back to SWT");
-            } catch (Throwable failure) {
-                System.err.println("[bigm] SwiftUI face failed: " + failure.getMessage()
-                        + " — falling back to SWT");
-            }
-        }
-
-        // ── Legacy SWT fallback ───────────────────────────────────────────
+        // ── SWT face ───────────────────────────────────────────────────────
         boolean uiSmoke = java.util.Arrays.asList(args).contains("--ui-smoke");
         boolean uiAudit = java.util.Arrays.asList(args).contains("--ui-audit");
+        int faceShotAt = argList.indexOf("--face-shot");
+        int sceneShotAt = argList.indexOf("--scene-shot");
 
         try {
             core.Catalog catalog = core.Catalog.load();
             Display display = new Display();
+            ui.NativelessIdentity.install(display);
+            if (sceneShotAt >= 0) {
+                String path = sceneShotAt + 1 < argList.size()
+                        ? argList.get(sceneShotAt + 1) : "/tmp/bigm-scene.png";
+                String theme = argList.contains("--theme-day") ? "pine" : "pine";
+                var palette = ui.SwiftPalette.get(theme);
+                var variant = argList.contains("--theme-day")
+                        ? ui.SwiftPalette.Variant.DAY : ui.SwiftPalette.Variant.NIGHT;
+                var img = new org.eclipse.swt.graphics.Image(display, 1500, 944);
+                var gc = new org.eclipse.swt.graphics.GC(img);
+                ui.NightwoodScene.paint(gc, palette, variant, 1500, 944);
+                gc.dispose();
+                var loader = new org.eclipse.swt.graphics.ImageLoader();
+                loader.data = new org.eclipse.swt.graphics.ImageData[]{img.getImageData()};
+                loader.save(path, org.eclipse.swt.SWT.IMAGE_PNG);
+                img.dispose(); display.dispose();
+                System.out.println("scene-shot: wrote " + path);
+                return;
+            }
             LauncherWindow window = new LauncherWindow(display, catalog);
+            if (faceShotAt >= 0) {
+                String path = faceShotAt + 1 < argList.size()
+                        ? argList.get(faceShotAt + 1) : "/tmp/bigm-face.png";
+                window.shell().open();
+                display.timerExec(1500, () -> {
+                    org.eclipse.swt.widgets.Shell s = window.shell();
+                    s.update();
+                    var sz = s.getSize();
+                    var img = new org.eclipse.swt.graphics.Image(display, sz.x, sz.y);
+                    var gc = new org.eclipse.swt.graphics.GC(img);
+                    boolean ok = s.print(gc);
+                    gc.dispose();
+                    var loader = new org.eclipse.swt.graphics.ImageLoader();
+                    loader.data = new org.eclipse.swt.graphics.ImageData[]{img.getImageData()};
+                    loader.save(path, org.eclipse.swt.SWT.IMAGE_PNG);
+                    img.dispose();
+                    System.out.println("face-shot: " + (ok ? "wrote " + path : "FAILED (saved raw)"));
+                    s.dispose();
+                });
+                while (!window.shell().isDisposed()) {
+                    if (!display.readAndDispatch()) display.sleep();
+                }
+                display.dispose();
+                return;
+            }
             if (uiSmoke) {
                 System.out.println("ui-smoke: window constructed");
                 // In-process proof for the icon pipeline: seed the rigel
@@ -495,7 +498,6 @@ public final class BigMApp {
     private static int iconsE2E() {
         int failures = 0;
         try {
-            core.DockIdentity.install();
             int pickIdx = java.util.Arrays.asList(argsSnapshot).indexOf("--icons-e2e");
             String pick = pickIdx + 1 < argsSnapshot.length ? argsSnapshot[pickIdx + 1]
                     : "/Applications/ChatGPT.app";

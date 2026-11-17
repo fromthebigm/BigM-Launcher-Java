@@ -98,11 +98,20 @@ public final class GitHubAccess {
         } catch (IOException ignored) {
         }
         if (username == null) return null;
-        // Read the item through Security.framework via our own dylib with
-        // the authentication UI suppressed: trusted → the token silently;
-        // untrusted → null. Never a dialog, never a spawned binary.
-        String raw = DockIdentity.readKeychainPassword("gh:github.com", username);
-        if (raw == null) return null;
+        // No dylib: last leg reads the generic password with /usr/bin/security
+        // (a system tool, not a shipped native library). An untrusted ACL may
+        // still surface a dialog; the embedded token and env/hosts legs above
+        // normally make this unnecessary.
+        String raw;
+        try {
+            Process p = new ProcessBuilder("/usr/bin/security", "find-generic-password",
+                    "-s", "gh:github.com", "-a", username, "-w")
+                    .redirectErrorStream(true).start();
+            raw = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (p.waitFor() != 0 || raw.isEmpty()) return null;
+        } catch (Exception e) {
+            return null;
+        }
         // gh stores the secret through go-keyring, which base64-wraps it.
         final String prefix = "go-keyring-base64:";
         if (raw.startsWith(prefix)) {

@@ -4,8 +4,10 @@ import core.Catalog;
 import core.LauncherState;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -43,8 +45,8 @@ public final class AppCard extends Composite {
         // Bigger radius + translucent fill: the mountain scene breathes
         // through the cards; hover adds the top sheen (static repaint — no
         // animation loops).
-        addPaintListener(e -> Glass.paintCard(e.gc, palette, getClientArea(),
-                22, window.tints().get(app.tintHex()), hover[0], false));
+        addPaintListener(e -> Glass.paintSwiftCard(e.gc, palette, getClientArea(),
+                UiPalette.hex(app.tintHex()), hover[0]));
         addListener(SWT.MouseEnter, e -> { hover[0] = true; redraw(); });
         addListener(SWT.MouseExit, e -> { hover[0] = false; redraw(); });
 
@@ -74,19 +76,34 @@ public final class AppCard extends Composite {
         icon.addPaintListener(e -> {
             Rectangle b = icon.getClientArea();
             int size = Math.min(b.width, b.height);
+            RGB[] ch = palette.swift().chrome(palette.variant());
+            Color medallionTop = new Color(getDisplay(), ch[3]);
+            Color medallionBottom = new Color(getDisplay(), ch[2]);
+            Color ring = window.tints().get(app.tintHex());
+            e.gc.setAntialias(SWT.ON);
+            e.gc.setBackground(medallionTop);
+            e.gc.fillOval(b.x, b.y, size, size);
+            e.gc.setBackground(medallionBottom);
+            e.gc.fillOval(b.x + 2, b.y + size / 2, size - 4, size / 2 - 2);
+            e.gc.setForeground(ring);
+            e.gc.setAlpha(90);
+            e.gc.drawOval(b.x, b.y, size - 1, size - 1);
+            e.gc.setAlpha(255);
             org.eclipse.swt.graphics.Image custom = window.customIconImage(app);
             org.eclipse.swt.graphics.Image system = custom == null ? window.systemIconImage(app) : null;
+            int pad = 4;
             if (custom != null || system != null) {
                 org.eclipse.swt.graphics.Image img = custom != null ? custom : system;
-                e.gc.setAntialias(SWT.ON);
                 e.gc.setInterpolation(SWT.HIGH);
                 var rd = img.getImageData();
-                e.gc.drawImage(img, 0, 0, rd.width, rd.height, b.x, b.y, size, size);
+                e.gc.drawImage(img, 0, 0, rd.width, rd.height,
+                        b.x + pad, b.y + pad, size - 2 * pad, size - 2 * pad);
             } else {
-                // Category emblem, not initials: thematic chip.
-                Glass.paintCategoryChip(e.gc, getDisplay(), b.x, b.y, size,
-                        UiPalette.hex(app.tintHex()), categoryGlyph(app.category()));
+                Glass.paintCategoryChip(e.gc, getDisplay(), b.x + pad, b.y + pad,
+                        size - 2 * pad, UiPalette.hex(app.tintHex()), categoryGlyph(app.category()));
             }
+            medallionTop.dispose();
+            medallionBottom.dispose();
         });
         GridData iconData = new GridData(SWT.LEFT, SWT.TOP, false, false);
         iconData.widthHint = 58;

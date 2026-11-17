@@ -126,10 +126,74 @@ public final class Glass {
         gc.setBackground(palette.chromeDeep);
         gc.fillRectangle(area);
         if ("solid".equals(backgroundStyle)) return;
-        paintScene(gc, area, new SceneColors(palette.skyTop(), palette.skyHorizon(),
-                palette.ridgeFar(), palette.ridgeMid(), palette.ridgeNear(),
-                palette.accent(), palette.textPrimary),
-                seedOf(Math.max(1, area.width), Math.max(1, area.height), 3));
+        // The SwiftUI face's exact Nightwood painter — no native bridge.
+        boolean translated = area.x != 0 || area.y != 0;
+        org.eclipse.swt.graphics.Transform transform = translated
+                ? new org.eclipse.swt.graphics.Transform(gc.getDevice(), 1, 0, 0, 1, area.x, area.y)
+                : null;
+        if (transform != null) gc.setTransform(transform);
+        try {
+            NightwoodScene.paint(gc, palette.swift(), palette.variant(), area.width, area.height);
+        } finally {
+            if (transform != null) { gc.setTransform(null); transform.dispose(); }
+        }
+    }
+
+    /** SwiftUI AppCardView look: diagonal card gradient, accent hairline,
+     *  corner vines, and a soft shadow. No native bridge. */
+    public static void paintSwiftCard(GC gc, UiPalette palette, Rectangle b,
+                                      RGB tint, boolean hover) {
+        gc.setAdvanced(true);
+        gc.setAntialias(SWT.ON);
+        int x = b.x, y = b.y, w = b.width, h = b.height;
+        int radius = 18;
+        RGB[] ch = palette.swift().chrome(palette.variant());
+        RGB top = ch[2], bottom = ch[3], accent = tint == null ? palette.swift().accent() : tint;
+        Color cTop = new Color(gc.getDevice(), top);
+        Color cBottom = new Color(gc.getDevice(), bottom);
+        Color cAccent = new Color(gc.getDevice(), accent);
+        Color cShadow = gc.getDevice().getSystemColor(SWT.COLOR_BLACK);
+        try {
+            // shadow
+            gc.setAlpha(hover ? 38 : 76);
+            gc.setBackground(cShadow);
+            gc.fillRoundRectangle(x, y + 2, w, h, radius * 2, radius * 2);
+            gc.setAlpha(255);
+            // diagonal gradient body
+            int bands = Math.max(8, Math.min(64, h));
+            for (int i = 0; i < bands; i++) {
+                double f = (double) i / (bands - 1);
+                Color c = new Color(gc.getDevice(), ui.SwiftPalette.mix(top, bottom, f));
+                gc.setBackground(c);
+                int by = y + i * h / bands;
+                gc.fillRoundRectangle(x, by, w, h / bands + 2,
+                        i == 0 ? radius * 2 : 0, i == 0 ? radius * 2 : 0);
+                c.dispose();
+            }
+            // accent hairline
+            gc.setForeground(cAccent);
+            gc.setAlpha(90);
+            gc.drawRoundRectangle(x, y, w - 1, h - 1, radius * 2, radius * 2);
+            gc.setAlpha(255);
+            // corner vines
+            paintVine(gc, cAccent, x + 2, y + 2, 0);
+            paintVine(gc, cAccent, x + w - 20, y + 2, 90);
+            paintVine(gc, cAccent, x + w - 20, y + h - 20, 180);
+            paintVine(gc, cAccent, x + 2, y + h - 20, 270);
+        } finally {
+            cTop.dispose(); cBottom.dispose(); cAccent.dispose();
+        }
+    }
+
+    private static void paintVine(GC gc, Color color, int x, int y, int rotation) {
+        gc.setForeground(color);
+        gc.setAlpha(64);
+        gc.drawLine(x, y + 16, x + 12, y + 5);
+        int[][] leaves = {{2, 12, 4}, {6, 8, 3}, {10, 5, 2}};
+        for (int[] leaf : leaves) {
+            gc.drawOval(x + leaf[0], y + leaf[1], leaf[2], leaf[2] / 2);
+        }
+        gc.setAlpha(255);
     }
 
     /** Full-scene color contract so the window (live palette) and theme

@@ -89,7 +89,9 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
                     String json = buildStateJson();
                     if (!json.equals(lastPushedJson)) {
                         lastPushedJson = json;
-                        SwiftUIHost.pushState(json);
+                        // No SwiftUI face in the no-dylib build; state is
+                        // rendered directly by the SWT face from core objects.
+
                     }
                 } catch (Throwable ignored) {
                 }
@@ -125,7 +127,7 @@ public final class HeadlessController implements LauncherState.Listener, UpdateM
     private void doPush(String json) {
         lastPushTime = System.currentTimeMillis();
         lastPushedJson = json;
-        SwiftUIHost.pushState(json);
+        // No SwiftUI face in the no-dylib build.
         pendingPush = false;
     }
 

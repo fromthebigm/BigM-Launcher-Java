@@ -12,7 +12,6 @@ if [ ! -x "$JAVA" ] && [ -x "$(command -v java 2>/dev/null)" ]; then
 fi
 
 # -XstartOnFirstThread: SWT/Cocoa requires the AppKit run loop on thread 0.
-# --enable-native-access: FFM bridge (DockIdentity) on JDK 22+.
 # Energy: the launcher idles most of its life — Serial GC + a small heap
 # keep idle threads, GC concurrency, and memory pressure (and therefore
 # memory-compression + swap churn) low on machines that leave it open
