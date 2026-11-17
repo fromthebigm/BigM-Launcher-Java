@@ -225,7 +225,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         brand.setLayout(brandLayout);
         Composite brandChip = new Composite(brand, SWT.NO_BACKGROUND | SWT.DOUBLE_BUFFERED) {
             @Override public Point computeSize(int wHint, int hHint, boolean changed) {
-                return new Point(42, 42);
+                return new Point(36, 36);
             }
         };
         // Painted straight into the sidebar GC — vector-sharp at any zoom,
@@ -251,12 +251,20 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
                     return;
                 }
             }
-            Glass.paintIconChip(e.gc, display, b.x, b.y, size,
-                    palette.accent().getRGB(), "BM");
+            e.gc.setAntialias(SWT.ON);
+            e.gc.setBackground(palette.accent());
+            e.gc.setAlpha(38);
+            e.gc.fillOval(b.x, b.y, size, size);
+            e.gc.setAlpha(255);
+            e.gc.setForeground(palette.accent());
+            e.gc.drawOval(b.x, b.y, size - 1, size - 1);
+            e.gc.setFont(palette.brand);
+            var ext = e.gc.textExtent("BM");
+            e.gc.drawString("BM", b.x + (size - ext.x) / 2, b.y + (size - ext.y) / 2, true);
         });
         GridData chipData = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-        chipData.widthHint = 42;
-        chipData.heightHint = 42;
+        chipData.widthHint = 36;
+        chipData.heightHint = 36;
         brandChip.setLayoutData(chipData);
         Composite brandText = new Composite(brand, SWT.NO_BACKGROUND);
         GridLayout btLayout = new GridLayout(1, false);
