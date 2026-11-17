@@ -37,6 +37,7 @@ public abstract class SheetShell {
         fill(sheet);
         sheet.open();
         ObjCCapture.apply();
+        System.err.println("[bigm] sheet capture: " + ObjCCapture.status());
         // Apply immediately; a 1-second SWT timer also re-applies to any
         // window that appears later.
         // Content laid out before the window exists measures at the sheet's

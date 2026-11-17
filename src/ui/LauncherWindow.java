@@ -1387,7 +1387,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
     public void openWithoutGate() {
         shell.open();
         ObjCCapture.apply();
-        log("info", null, "BigM (Java) opened; " + visibleApps().size() + " catalog apps");
+        log("info", null, "BigM (Java) opened; " + visibleApps().size() + " catalog apps; capture " + ObjCCapture.status());
         while (!shell.isDisposed()) {
             if (!display.readAndDispatch()) display.sleep();
         }

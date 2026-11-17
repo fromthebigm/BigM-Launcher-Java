@@ -509,7 +509,7 @@ public final class BigMApp {
             System.out.println("icons-e2e: launcher. render=" + rendered
                     + " has=" + core.IconStore.hasCustomIcon(core.IconStore.LAUNCHER_ID));
             core.IconStore.saveLauncherMode(core.IconStore.Mode.SYSTEM);
-            core.IconStore.applyLauncherIcon();          // live-apply through dylib
+            core.IconStore.applyLauncherIcon();          // live-apply via SWT TaskBar if a Display is active
             boolean applied = core.IconStore.hasCustomIcon(core.IconStore.LAUNCHER_ID);
             core.IconStore.resetLauncherIcon();          // reset
             core.IconStore.applyLauncherIcon();
@@ -537,12 +537,12 @@ public final class BigMApp {
             System.out.println("icons-e2e: ticket-with-icons=" + ticketOk);
             if (!ticketOk) failures++;
 
-            // d) presets beside the dylib
-            java.nio.file.Path light = Paths.root().resolve("native/voicememos-light.png");
-            java.nio.file.Path dark = Paths.root().resolve("native/voicememos-dark.png");
+            // d) presets used by the pure-Java Dock identity
+            java.nio.file.Path light = Paths.resources().resolve("presets/voicememos-light.png");
+            java.nio.file.Path dark = Paths.resources().resolve("presets/voicememos-dark.png");
             boolean presets = java.nio.file.Files.isRegularFile(light)
                     && java.nio.file.Files.isRegularFile(dark);
-            System.out.println("icons-e2e: voicememos presets beside dylib=" + presets);
+            System.out.println("icons-e2e: voicememos presets in Resources=" + presets);
             if (!presets) failures++;
 
             System.out.println(failures == 0 ? "icons-e2e: PASS" : "icons-e2e: FAILURES=" + failures);

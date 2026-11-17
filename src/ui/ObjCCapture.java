@@ -27,15 +27,18 @@ public final class ObjCCapture {
     private static final Linker LINKER = Linker.nativeLinker();
     private static final Arena GLOBAL = Arena.ofShared();
     private static final AtomicBoolean INSTALLED = new AtomicBoolean();
-    private static MethodHandle msgSendPtr, msgSendVoid, msgSendLong, selRegisterFn;
-    private static MemorySegment selSharedApp, selWindows, selCount, selObjectAt, selSetSharing;
+    private static MethodHandle msgSendPtr, msgSendVoid, msgSendLong, msgSendLong0, msgSendCount, msgSendObjAt, selRegisterFn;
+    private static MemorySegment selSharedApp, selWindows, selCount, selObjectAt, selSetSharing, selSharing;
     private static MethodHandle mainConnectionFn, regionCreateFn, excludeFn;
     private static MemoryLayout cgRect;
     private static volatile String status = "not installed";
+    private static volatile int publicWindows, privateWindows, seenWindows;
+    private static volatile long firstSharing = -1;
+    private static volatile long appAddress = -1, windowsAddress = -1, lastCount = -1;
 
     private ObjCCapture() {}
 
-    public static String status() { return status; }
+    public static String status() { return status + " [app=" + appAddress + " arr=" + windowsAddress + " count=" + lastCount + " seen=" + seenWindows + " public=" + publicWindows + " private=" + privateWindows + " sharing=" + firstSharing + "]"; }
 
     /** Install once; must be called on the SWT UI thread after Display exists. */
     public static synchronized void install(Display display) {
@@ -53,6 +56,12 @@ public final class ObjCCapture {
                     FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
             msgSendLong = LINKER.downcallHandle(objcMsgSend,
                     FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+            msgSendLong0 = LINKER.downcallHandle(objcMsgSend,
+                    FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            msgSendCount = LINKER.downcallHandle(objcMsgSend,
+                    FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            msgSendObjAt = LINKER.downcallHandle(objcMsgSend,
+                    FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
             selRegisterFn = LINKER.downcallHandle(libobjc.find("sel_registerName").orElseThrow(),
                     FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
@@ -61,6 +70,7 @@ public final class ObjCCapture {
             selCount = sel("count");
             selObjectAt = sel("objectAtIndex:");
             selSetSharing = sel("setSharingType:");
+            selSharing = sel("sharingType");
 
             // Private WindowServer exclusion, best effort.
             try {
@@ -119,17 +129,29 @@ public final class ObjCCapture {
     /** Apply to all current NSWindows. Safe to call repeatedly. */
     public static void apply() {
         if (msgSendPtr == null) return;
+        publicWindows = 0;
+        privateWindows = 0;
+        seenWindows = 0;
+        firstSharing = -1;
         try {
+            appAddress = Lookup.CLS_NSAPPLICATION == null ? -2 : Lookup.CLS_NSAPPLICATION.address();
             MemorySegment app = (MemorySegment) msgSendPtr.invoke(
                     Lookup.CLS_NSAPPLICATION, selSharedApp);
             if (app == null || app.address() == 0) return;
+            appAddress = app.address();
             MemorySegment windows = (MemorySegment) msgSendPtr.invoke(app, selWindows);
             if (windows == null || windows.address() == 0) return;
-            long count = (long) msgSendLong.invoke(windows, selCount, 0L);
+            windowsAddress = windows.address();
+            long count = (long) msgSendCount.invoke(windows, selCount);
+            lastCount = count;
             for (long i = 0; i < Math.min(count, 256); i++) {
-                MemorySegment window = (MemorySegment) msgSendPtr.invoke(windows, selObjectAt, i);
+                MemorySegment window = (MemorySegment) msgSendObjAt.invoke(windows, selObjectAt, i);
                 if (window == null || window.address() == 0) continue;
                 msgSendVoid.invoke(window, selSetSharing, 0); // NSWindowSharingNone
+                long sharing = (long) msgSendLong0.invoke(window, selSharing);
+                seenWindows++;
+                if (firstSharing < 0) firstSharing = sharing;
+                if (sharing == 0) publicWindows++;
                 if (excludeFn != null) applyWindowServerExclusion(window);
             }
         } catch (Throwable ignored) {
@@ -138,7 +160,7 @@ public final class ObjCCapture {
 
     private static void applyWindowServerExclusion(MemorySegment window) {
         try {
-            long windowNumber = (long) msgSendLong.invoke(window, sel("windowNumber"), 0L);
+            long windowNumber = (long) msgSendCount.invoke(window, sel("windowNumber"));
             if (windowNumber <= 0) return;
             int connection = (int) mainConnectionFn.invoke();
             try (Arena scope = Arena.ofConfined()) {
@@ -149,7 +171,8 @@ public final class ObjCCapture {
                 rect.set(ValueLayout.JAVA_DOUBLE, 24L, 32768.0);
                 MemorySegment region = (MemorySegment) regionCreateFn.invoke(rect);
                 if (region == null || region.address() == 0) return;
-                excludeFn.invoke(connection, windowNumber, region);
+                int result = (int) excludeFn.invoke(connection, windowNumber, region);
+                if (result == 0) privateWindows++;
             }
         } catch (Throwable ignored) {
         }
