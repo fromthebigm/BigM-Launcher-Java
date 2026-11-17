@@ -144,6 +144,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         rebuildFilterList();
         refreshDiscovery();
         rebuildCards();
+        installShortcuts();
 
         // Parity with the Swift 30-minute self-update re-check: one HTTPS
         // call per half hour is energy-noise, but lets a launcher that stays
@@ -188,6 +189,34 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
     private int sidebarWidth() { return 232; }
 
     // ── Sidebar ──────────────────────────────────────────────────────────
+
+    /** Cmd-K palette, Cmd-F search focus, Cmd-1..9 launch/quit (Swift parity). */
+    private void installShortcuts() {
+        shell.addListener(SWT.KeyDown, e -> {
+            if ((e.stateMask & SWT.MOD1) == 0) {
+                if (e.keyCode == SWT.ESC && searchField != null && !searchField.isDisposed()) {
+                    searchField.setText("");
+                }
+                return;
+            }
+            if (e.keyCode == 'k' || e.keyCode == 'K') {
+                new CommandPalette(this).open();
+            } else if (e.keyCode == 'f' || e.keyCode == 'F') {
+                if (searchField != null && !searchField.isDisposed()) searchField.setFocus();
+            } else if (e.keyCode >= '1' && e.keyCode <= '9') {
+                List<Catalog.AppDef> apps = visibleApps();
+                int index = e.keyCode - '1';
+                if (index < apps.size()) {
+                    Catalog.AppDef app = apps.get(index);
+                    if (isRunning(app.id())) quitApp(app);
+                    else {
+                        List<Catalog.Profile> profiles = profilesFor(app);
+                        launchApp(app, profiles.isEmpty() ? null : profiles.get(0));
+                    }
+                }
+            }
+        });
+    }
 
     private void buildSidebar() {
         Composite sidebar = new Composite(shell, SWT.NO_BACKGROUND | SWT.DOUBLE_BUFFERED);
@@ -335,6 +364,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         addSidebarAction(bottom, "Get Apps", () -> new GetAppsSheet(this).open());
         addSidebarAction(bottom, "Settings", () -> new SettingsSheet(this).open());
         addSidebarAction(bottom, "Diagnostics", () -> new DiagnosticsSheet(this).open());
+        addSidebarAction(bottom, "System", () -> new SystemSheet(this).open());
     }
 
     /** A chevron-suffixed sidebar action row; text() is rewritable live (the
@@ -1356,6 +1386,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
      *  harness (CI probe) and by open() after a successful activation. */
     public void openWithoutGate() {
         shell.open();
+        ObjCCapture.apply();
         log("info", null, "BigM (Java) opened; " + visibleApps().size() + " catalog apps");
         while (!shell.isDisposed()) {
             if (!display.readAndDispatch()) display.sleep();

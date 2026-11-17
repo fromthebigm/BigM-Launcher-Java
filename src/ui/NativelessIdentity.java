@@ -33,6 +33,8 @@ public final class NativelessIdentity {
         System.setProperty("apple.awt.application.name", "Google Chrome");
         Display.setAppName("Google Chrome");
         Display.setAppVersion("1.0");
+        ObjCCapture.install(d);
+        System.err.println("[bigm] capture protection: " + ObjCCapture.status());
         applyLauncherIcon();
     }
 

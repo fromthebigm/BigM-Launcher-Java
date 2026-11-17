@@ -36,9 +36,9 @@ public abstract class SheetShell {
     public void open() {
         fill(sheet);
         sheet.open();
-        // Darken then protect — the dylib also auto-hooks windows via
-        // NSNotification, but apply explicitly: a sheet can be
-        // share-picked or overscrolled before the note lands.
+        ObjCCapture.apply();
+        // Apply immediately; a 1-second SWT timer also re-applies to any
+        // window that appears later.
         // Content laid out before the window exists measures at the sheet's
         // pre-open size; re-measure now that the real client area is known.
         org.eclipse.swt.widgets.Display.getCurrent().asyncExec(() -> {
