@@ -1,6 +1,5 @@
 package ui;
 
-import core.LauncherConfig;
 import core.Paths;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Color;
@@ -44,7 +43,7 @@ final class FirstLaunchPrompt extends SheetShell {
             dialog.setText("Choose a folder");
             String path = dialog.open();
             if (path != null) {
-                new LauncherConfig().setDefaultInstallFolder(path);
+                window.config().setDefaultInstallFolder(path);
                 window.refreshDiscovery();
             }
             sheet.dispose();
@@ -53,7 +52,7 @@ final class FirstLaunchPrompt extends SheetShell {
         GlassButton skip = new GlassButton(sheet, palette, "Skip for now", GlassButton.Style.QUIET);
         skip.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER, false, false));
         skip.addListener(SWT.Selection, e -> {
-            new LauncherConfig().setDefaultInstallFolder(Paths.realHome().resolve("Downloads").toString());
+            window.config().setDefaultInstallFolder(Paths.realHome().resolve("Downloads").toString());
             sheet.dispose();
         });
     }

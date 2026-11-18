@@ -67,6 +67,7 @@ public final class BigMApp {
         boolean uiAudit = java.util.Arrays.asList(args).contains("--ui-audit");
         int faceShotAt = argList.indexOf("--face-shot");
         int sceneShotAt = argList.indexOf("--scene-shot");
+        boolean actionE2E = argList.contains("--action-e2e");
 
         try {
             core.Catalog catalog = core.Catalog.load();
@@ -91,6 +92,21 @@ public final class BigMApp {
                 return;
             }
             LauncherWindow window = new LauncherWindow(display, catalog);
+            if (actionE2E) {
+                window.shell().open();
+                int[] buttons = {0}, withListeners = {0};
+                java.util.List<String> labels = new java.util.ArrayList<>();
+                collectButtons(window.shell(), buttons, withListeners, labels);
+                System.out.println("action-e2e: glass buttons=" + buttons[0]
+                        + " withSelection=" + withListeners[0]);
+                System.out.println("action-e2e: labels=" + labels);
+                boolean ok = buttons[0] > 0 && buttons[0] == withListeners[0];
+                System.out.println(ok ? "action-e2e: PASS" : "action-e2e: FAIL");
+                window.shell().dispose();
+                display.dispose();
+                System.exit(ok ? 0 : 1);
+                return;
+            }
             if (faceShotAt >= 0) {
                 String path = faceShotAt + 1 < argList.size()
                         ? argList.get(faceShotAt + 1) : "/tmp/bigm-face.png";
@@ -176,7 +192,7 @@ public final class BigMApp {
                 // disposed mid-paint. Hammer the palette like a furious
                 // user, repainting between every switch; any stale
                 // reference to a retired color throws here, not in prod.
-                String[] keys = {"pine", "dusk", "glacier", "ember", "summit"};
+                String[] keys = {"pine", "taiga", "dusk", "glacier", "ember", "summit"};
                 display.timerExec(4300, new Runnable() {
                     int i = 0;
                     @Override public void run() {
@@ -570,6 +586,23 @@ public final class BigMApp {
     }
 
     private static String[] argsSnapshot = new String[0];
+
+    private static void collectButtons(org.eclipse.swt.widgets.Widget widget,
+                                       int[] buttons, int[] withListeners,
+                                       java.util.List<String> labels) {
+        if (widget == null) return;
+        if (widget.getClass().getSimpleName().equals("GlassButton")) {
+            buttons[0]++;
+            if (widget.getListeners(org.eclipse.swt.SWT.Selection).length > 0) withListeners[0]++;
+            try {
+                labels.add((String) widget.getClass().getMethod("getText").invoke(widget));
+            } catch (Throwable ignored) {}
+        }
+        if (widget instanceof org.eclipse.swt.widgets.Composite composite) {
+            for (org.eclipse.swt.widgets.Control child : composite.getChildren())
+                collectButtons(child, buttons, withListeners, labels);
+        }
+    }
 
     private static int selfTest() {
         int failures = 0;

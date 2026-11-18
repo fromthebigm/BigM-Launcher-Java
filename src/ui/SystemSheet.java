@@ -20,6 +20,16 @@ public final class SystemSheet extends SheetShell {
 
     @Override protected void fill(Shell sheet) {
         SystemStats.Machine m = SystemStats.machine();
+        Composite header = new Composite(sheet, SWT.NO_BACKGROUND);
+        header.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+        header.setLayout(new GridLayout(2, false));
+        Label title = new Label(header, SWT.NONE);
+        title.setText("System");
+        title.setFont(palette.libTitle);
+        title.setForeground(palette.textPrimary);
+        title.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        ui.GlassButton done = new ui.GlassButton(header, palette, "Done", ui.GlassButton.Style.TOOL);
+        done.addListener(SWT.Selection, e -> sheet.close());
         Composite body = scrolledBody(sheet);
 
         card(body, "CPU", Glass.Glyph.INFO, palette.accent());
