@@ -23,6 +23,14 @@ fi
 export HOME="$PORTABLE_HOME"
 export CFFIXED_USER_HOME="$PORTABLE_HOME"
 
+# Portable invariant: never fall back to a system Java. Fail loudly before
+# detaching so the user sees why nothing launched instead of an empty window.
+if [ ! -x "$ROOT/jdk/Contents/Home/bin/java" ]; then
+    printf '%s\n' "BigM Launcher: bundled JDK not found at $ROOT/jdk/Contents/Home/bin/java." >&2
+    printf '%s\n' "This portable app requires its bundled JDK; not using a system Java." >&2
+    exit 1
+fi
+
 # Self-heal the exec bits + quarantine attrs after any Folder/AirDrop move
 # (transfers strip them; without this the bundled runtime answers "unable
 # to find a local java runtime" — same discipline as Rigel's launchers).

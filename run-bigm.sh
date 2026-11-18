@@ -7,8 +7,10 @@ ROOT="$(CDPATH= cd "$(dirname "$0")" && pwd -P)"
 unset __CFBundleIdentifier 2>/dev/null || true
 
 JAVA="$ROOT/jdk/Contents/Home/bin/java"
-if [ ! -x "$JAVA" ] && [ -x "$(command -v java 2>/dev/null)" ]; then
-    JAVA="$(command -v java)"
+if [ ! -x "$JAVA" ]; then
+    printf '%s\n' "Bundled JDK not found at $JAVA." >&2
+    printf '%s\n' "This portable launcher requires the bundled JDK that ships with it." >&2
+    exit 1
 fi
 
 # -XstartOnFirstThread: SWT/Cocoa requires the AppKit run loop on thread 0.
