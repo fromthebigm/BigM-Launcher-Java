@@ -91,6 +91,7 @@ public abstract class SheetShell {
         ScrolledComposite scroller = new ScrolledComposite(holder, SWT.V_SCROLL | SWT.NO_BACKGROUND);
         scroller.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         scroller.setExpandHorizontal(true);
+        clearNativeScrollerPlate(scroller);
         Composite body = new Composite(scroller, SWT.NO_BACKGROUND);
         GridLayout layout = new GridLayout(1, false);
         layout.marginWidth = 22;
@@ -111,6 +112,25 @@ public abstract class SheetShell {
         body.setData("scroller", scroller);
         body.setData("resize", resize);
         return body;
+    }
+
+    /** Clear the AppKit gray plate behind NSScrollView/NSClipView. SWT's
+     *  NO_BACKGROUND does not stop NSClipView from painting its document plate. */
+    private static void clearNativeScrollerPlate(ScrolledComposite sc) {
+        try {
+            if (sc.view == null || sc.view.id == 0) return;
+            long nsColor = org.eclipse.swt.internal.cocoa.OS.objc_msgSend(
+                    org.eclipse.swt.internal.cocoa.OS.objc_getClass("NSColor"),
+                    org.eclipse.swt.internal.cocoa.OS.sel_registerName("clearColor"));
+            org.eclipse.swt.internal.cocoa.OS.objc_msgSend(sc.view.id,
+                    org.eclipse.swt.internal.cocoa.OS.sel_registerName("setBackgroundColor:"), nsColor);
+            long clipView = org.eclipse.swt.internal.cocoa.OS.objc_msgSend(sc.view.id,
+                    org.eclipse.swt.internal.cocoa.OS.sel_registerName("contentView"));
+            if (clipView != 0)
+                org.eclipse.swt.internal.cocoa.OS.objc_msgSend(clipView,
+                        org.eclipse.swt.internal.cocoa.OS.sel_registerName("setBackgroundColor:"), nsColor);
+        } catch (Throwable ignored) {
+        }
     }
 
     /** Glass card with a section header (vector glyph + tinted title). */

@@ -529,6 +529,22 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         scroller.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         scroller.setExpandHorizontal(true);
         scroller.setExpandVertical(false);
+        // Clear AppKit's gray NSScrollView/NSClipView document plate; SWT's
+        // NO_BACKGROUND alone does not stop native NSClipView painting.
+        try {
+            if (scroller.view != null && scroller.view.id != 0) {
+                long color = org.eclipse.swt.internal.cocoa.OS.objc_msgSend(
+                        org.eclipse.swt.internal.cocoa.OS.objc_getClass("NSColor"),
+                        org.eclipse.swt.internal.cocoa.OS.sel_registerName("clearColor"));
+                org.eclipse.swt.internal.cocoa.OS.objc_msgSend(scroller.view.id,
+                        org.eclipse.swt.internal.cocoa.OS.sel_registerName("setBackgroundColor:"), color);
+                long clip = org.eclipse.swt.internal.cocoa.OS.objc_msgSend(scroller.view.id,
+                        org.eclipse.swt.internal.cocoa.OS.sel_registerName("contentView"));
+                if (clip != 0) org.eclipse.swt.internal.cocoa.OS.objc_msgSend(clip,
+                        org.eclipse.swt.internal.cocoa.OS.sel_registerName("setBackgroundColor:"), color);
+            }
+        } catch (Throwable ignored) {
+        }
         cardsParent = new Composite(scroller, SWT.NO_BACKGROUND);
         scroller.setContent(cardsParent);
         cardsParent.addListener(SWT.Resize, e -> relayoutGrid());
