@@ -25,15 +25,30 @@ public abstract class SheetShell {
     protected SheetShell(LauncherWindow window, String title, int width, int height) {
         this.window = window;
         this.palette = window.palette();
-        sheet = new Shell(window.shell(), SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE);
+        // Borderless, like SwiftUI .sheet(): no native NSWindow gray frame.
+        sheet = new Shell(window.shell(), SWT.NO_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE);
         sheet.setText(title);
         sheet.setSize(width, height);
+        sheet.setBackgroundMode(SWT.INHERIT_DEFAULT);
         sheet.setBackground(palette.chromeDeep);
-        // Sheets use solid chrome, matching the SwiftUI face: the mountain
-        // scene belongs to the main window only, not to modal settings panels.
         sheet.addPaintListener(e -> {
+            Rectangle b = sheet.getClientArea();
+            int h = Math.max(1, b.height - 4);
+            e.gc.setAntialias(SWT.ON);
+            e.gc.setAlpha(55);
+            e.gc.setBackground(e.gc.getDevice().getSystemColor(SWT.COLOR_BLACK));
+            e.gc.fillRoundRectangle(b.x, b.y + 4, b.width, h, 28, 28);
+            e.gc.setAlpha(255);
             e.gc.setBackground(palette.chromeDeep);
-            e.gc.fillRectangle(sheet.getClientArea());
+            e.gc.fillRoundRectangle(b.x, b.y, b.width, h, 28, 28);
+            e.gc.setForeground(palette.separator);
+            e.gc.drawRoundRectangle(b.x, b.y, b.width - 1, h - 1, 28, 28);
+        });
+        sheet.addListener(SWT.Resize, e -> {
+            Rectangle b = sheet.getClientArea();
+            if (!sheet.isDisposed())
+                sheet.setRegion(Glass.roundedRegion(sheet.getDisplay(), 0, 0,
+                        Math.max(1, b.width), Math.max(1, b.height - 4), 18));
         });
     }
 
