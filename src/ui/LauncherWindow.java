@@ -120,6 +120,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         updates.state().add(this);
 
         shell = new Shell(display, SWT.SHELL_TRIM);
+        WindowChrome.transparentTitleBar(shell);
         shell.setText("BigM");
         shell.setSize(1180, 760);
         shell.setMinimumSize(new Point(900, 560));

@@ -65,6 +65,9 @@ public final class BigMApp {
         // ── SWT face ───────────────────────────────────────────────────────
         boolean uiSmoke = java.util.Arrays.asList(args).contains("--ui-smoke");
         boolean uiAudit = java.util.Arrays.asList(args).contains("--ui-audit");
+        int shotAt = argList.indexOf("--shot");
+        int sheetShotAt = argList.indexOf("--sheet-shot");
+        int screenShotAt = argList.indexOf("--screen-shot");
         int faceShotAt = argList.indexOf("--face-shot");
         int sceneShotAt = argList.indexOf("--scene-shot");
         boolean actionE2E = argList.contains("--action-e2e");
@@ -105,6 +108,56 @@ public final class BigMApp {
                 window.shell().dispose();
                 display.dispose();
                 System.exit(ok ? 0 : 1);
+                return;
+            }
+            if (screenShotAt >= 0) {
+                String path = screenShotAt + 1 < argList.size()
+                        ? argList.get(screenShotAt + 1) : "/tmp/bigm-screen.png";
+                window.shell().open();
+                new ui.SettingsSheet(window).open();
+                display.timerExec(1200, () -> {
+                    boolean ok = ui.SelfCapture.captureScreen(path);
+                    System.out.println("screen-shot: " + (ok ? "wrote " + path : "FAILED"));
+                    for (org.eclipse.swt.widgets.Shell sh : display.getShells()) sh.dispose();
+                });
+                while (!window.shell().isDisposed()) {
+                    if (!display.readAndDispatch()) display.sleep();
+                }
+                display.dispose();
+                return;
+            }
+            if (sheetShotAt >= 0) {
+                String path = sheetShotAt + 1 < argList.size()
+                        ? argList.get(sheetShotAt + 1) : "/tmp/bigm-sheet.png";
+                window.shell().open();
+                new ui.SettingsSheet(window).open();
+                org.eclipse.swt.widgets.Shell[] all = display.getShells();
+                org.eclipse.swt.widgets.Shell target = all.length > 1 ? all[all.length - 1] : window.shell();
+                System.out.println("sheet target=" + target.getText() + " bounds=" + target.getBounds() + " visible=" + target.getVisible());
+                display.timerExec(1200, () -> {
+                    boolean ok = ui.SelfCapture.capture(target, path);
+                    System.out.println("sheet-shot: " + (ok ? "wrote " + path : "FAILED"));
+                    for (org.eclipse.swt.widgets.Shell sh : display.getShells()) sh.dispose();
+                });
+                while (!window.shell().isDisposed()) {
+                    if (!display.readAndDispatch()) display.sleep();
+                }
+                display.dispose();
+                return;
+            }
+            if (shotAt >= 0) {
+                String path = shotAt + 1 < argList.size()
+                        ? argList.get(shotAt + 1) : "/tmp/bigm-shot.png";
+                window.shell().open();
+                display.timerExec(1800, () -> {
+                    boolean ok = ui.SelfCapture.capture(window.shell(), path);
+                    System.out.println("shot: " + (ok ? "wrote " + path : "FAILED"));
+                    window.shell().dispose();
+                });
+                while (!window.shell().isDisposed()) {
+                    if (!display.readAndDispatch()) display.sleep();
+                }
+                display.dispose();
                 return;
             }
             if (faceShotAt >= 0) {

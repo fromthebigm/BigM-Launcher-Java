@@ -21,10 +21,13 @@ public abstract class SheetShell {
     protected final LauncherWindow window;
     protected final UiPalette palette;
     protected final Shell sheet;
+    private final int width, height;
 
     protected SheetShell(LauncherWindow window, String title, int width, int height) {
         this.window = window;
         this.palette = window.palette();
+        this.width = width;
+        this.height = height;
         // Borderless, like SwiftUI .sheet(): no native NSWindow gray frame.
         sheet = new Shell(window.shell(), SWT.NO_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE);
         sheet.setText(title);
@@ -44,17 +47,16 @@ public abstract class SheetShell {
             e.gc.setForeground(palette.separator);
             e.gc.drawRoundRectangle(b.x, b.y, b.width - 1, h - 1, 28, 28);
         });
-        sheet.addListener(SWT.Resize, e -> {
-            Rectangle b = sheet.getClientArea();
-            if (!sheet.isDisposed())
-                sheet.setRegion(Glass.roundedRegion(sheet.getDisplay(), 0, 0,
-                        Math.max(1, b.width), Math.max(1, b.height - 4), 18));
-        });
     }
 
     public void open() {
         fill(sheet);
+        sheet.setLocation(window.shell().getLocation().x
+                        + Math.max(0, (window.shell().getSize().x - width) / 2),
+                window.shell().getLocation().y
+                        + Math.max(0, (window.shell().getSize().y - height) / 2));
         sheet.open();
+        sheet.forceActive();
         ObjCCapture.apply();
         System.err.println("[bigm] sheet capture: " + ObjCCapture.status());
         // Apply immediately; a 1-second SWT timer also re-applies to any
