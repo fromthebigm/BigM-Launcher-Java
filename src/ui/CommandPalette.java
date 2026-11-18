@@ -72,6 +72,9 @@ public final class CommandPalette extends SheetShell {
         });
         resultList.addListener(SWT.MouseDoubleClick, e -> resultList.notifyListeners(SWT.DefaultSelection, new org.eclipse.swt.widgets.Event()));
         query.setFocus();
+        sheet.addListener(SWT.KeyDown, e -> {
+            if (e.keyCode == SWT.ESC) sheet.dispose();
+        });
     }
 
     private void refresh(org.eclipse.swt.widgets.List list, List<Action> actions, String query) {

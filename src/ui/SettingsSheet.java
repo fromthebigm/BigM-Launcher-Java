@@ -128,6 +128,12 @@ public final class SettingsSheet extends SheetShell {
             unlockResult.setText(result == null ? "Keychain unlocked; activation available."
                     : result);
         });
+        GlassButton enterKey = new GlassButton(unlockRow, palette, "Enter Key",
+                GlassButton.Style.TOOL);
+        enterKey.addListener(SWT.Selection, e -> {
+            sheet.close();
+            window.showGate();
+        });
 
         // ── Diagnostics & config files ──
         Composite files = card(body, "Files", Glass.Glyph.FOLDER, palette.accent());
@@ -155,6 +161,9 @@ public final class SettingsSheet extends SheetShell {
                 GlassButton.Style.TOOL);
         revealConfig.addListener(SWT.Selection,
                 e -> reveal(Paths.support().resolve("config.properties")));
+        GlassButton rescan = new GlassButton(fileButtons, palette, "Rescan Apps Folder",
+                GlassButton.Style.TOOL);
+        rescan.addListener(SWT.Selection, e -> window.refreshDiscovery());
         GlassButton copyPath = new GlassButton(fileButtons, palette, "Copy Config Path",
                 GlassButton.Style.TOOL);
         copyPath.addListener(SWT.Selection, e -> {

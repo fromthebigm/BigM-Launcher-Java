@@ -41,6 +41,20 @@ public final class BigMApp {
             return;
         }
 
+        if (java.util.Arrays.asList(args).contains("--ticket-e2e")) {
+            var env = core.LaunchTicket.environment();
+            boolean ok = env.containsKey("BIGM_LAUNCH_NONCE")
+                    && env.containsKey("BIGM_LAUNCH_TICKET")
+                    && env.containsKey("BIGM_LAUNCH_KEY_PATH");
+            try {
+                if (ok) ok = java.util.Base64.getDecoder().decode(env.get("BIGM_LAUNCH_NONCE")).length == 16
+                        && java.util.Base64.getDecoder().decode(env.get("BIGM_LAUNCH_TICKET")).length == 32;
+            } catch (Exception e) { ok = false; }
+            System.out.println("ticket-e2e: " + (ok ? "PASS" : "FAIL") + " keys=" + env.keySet());
+            System.exit(ok ? 0 : 1);
+            return;
+        }
+
         // End-to-end harnesses (the Swift VerifyUpdates.swift equivalents):
         // real network, real payloads, scratch roots only — they never touch
         // the dev tree. Run via run-bigm.sh to inherit HOME discipline.

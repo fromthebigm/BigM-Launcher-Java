@@ -62,8 +62,10 @@ public final class SystemSheet extends SheetShell {
         bodyText(machine, "Uptime: " + SystemStats.uptime());
         String version = "dev";
         try {
-            version = java.nio.file.Files.readString(core.Paths.resources()
-                    .resolve("version.txt")).trim().lines().findFirst().orElse("dev");
+            var rootStamp = core.Paths.root().resolve("version.txt");
+            version = java.nio.file.Files.readString(java.nio.file.Files.isRegularFile(rootStamp)
+                    ? rootStamp : core.Paths.resources().resolve("version.txt"))
+                    .trim().lines().findFirst().orElse("dev");
         } catch (Exception ignored) {}
         bodyText(machine, "BigM version: " + version);
 

@@ -261,13 +261,35 @@ public final class AppCard extends Composite {
                 }
             });
         }
+        if (app.updatable() && window.isInstalled(app)) {
+            menuItem(menu, "Check for Update", () -> {
+                var at = window.installDir(app.id());
+                if (at != null) window.updates().checkAppUpdate(app, at);
+            });
+        }
         menuItem(menu, "Locate…", () -> window.locateApp(app));
         menuItem(menu, "Reveal", () -> window.revealApp(app));
         new MenuItem(menu, SWT.SEPARATOR);
+        menuItem(menu, "Copy Name", () -> {
+            var cb = new org.eclipse.swt.dnd.Clipboard(getDisplay());
+            cb.setContents(new Object[]{app.displayName()},
+                    new org.eclipse.swt.dnd.Transfer[]{org.eclipse.swt.dnd.TextTransfer.getInstance()});
+            cb.dispose();
+        });
         menuItem(menu, "Change Icon…", () -> window.pickCustomIcon(app));
         if (core.IconStore.hasCustomIcon(app.id())) {
             menuItem(menu, "Reset Icon", () -> window.resetCustomIcon(app));
         }
+        menuItem(menu, "Delete " + app.displayName() + "…", () -> {
+            MessageBox box = new MessageBox(getShell(), SWT.ICON_WARNING | SWT.YES | SWT.NO);
+            box.setText("Remove Card");
+            box.setMessage("Remove " + app.displayName() + " from this launcher? Files are not deleted.");
+            if (box.open() == SWT.YES) {
+                window.config().removeApp(app.id());
+                core.IconStore.resetCustomIcon(app.id());
+                window.refreshDiscovery();
+            }
+        });
         MenuItem protection = new MenuItem(menu, SWT.CHECK);
         protection.setText("Screenshot + Share Protection");
         protection.setSelection(window.config().captureProtection(app.id()));

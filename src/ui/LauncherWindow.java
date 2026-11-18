@@ -158,6 +158,23 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
                 display.timerExec(30 * 60 * 1000, this);
             }
         };
+        // SwiftUI parity: "auto" follows the real clock (dawn 5-8, day 8-17,
+        // dusk 17-20, night otherwise). Refresh once a minute so a launcher
+        // left open all day crosses the boundary without a restart.
+        Runnable variantTick = new Runnable() {
+            @Override public void run() {
+                if (shell.isDisposed()) return;
+                if ("auto".equalsIgnoreCase(config.uiVariant())) {
+                    var current = SwiftPalette.Variant.fromHour(java.time.LocalTime.now().getHour());
+                    if (palette.variant() != current) {
+                        palette.setVariant("auto");
+                        shell.redraw();
+                    }
+                }
+                display.timerExec(60 * 1000, this);
+            }
+        };
+        display.timerExec(60 * 1000, variantTick);
         display.timerExec(30 * 60 * 1000, periodicSelfCheck);
         // Catalog-wide sweep every 6h while the launcher sits open (Swift
         // parity: sweepAppUpdatesIfStale on a cadence, not only on Reload).
@@ -939,6 +956,10 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
     }
 
     void launchApp(Catalog.AppDef app, Catalog.Profile profile) {
+        if (app == null || profile == null) {
+            log("error", app == null ? null : app.id(), "no launch profile available");
+            return;
+        }
         Path dir = installDirFor(app);
         String dirText = dir == null ? "" : dir.toString();
 
@@ -1412,6 +1433,9 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
 
     /** One-time activation: prompt for the universal product key, verify
      *  against the factory material, write the keychain marker on success. */
+    /** Reopen the activation prompt from Settings. */
+    public void showGate() { promptForKey(); }
+
     private boolean promptForKey() {
         Shell gate = new Shell(shell, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL);
         gate.setText("BigM Activation");
