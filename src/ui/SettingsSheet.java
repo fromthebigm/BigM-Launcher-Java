@@ -1,7 +1,9 @@
 package ui;
 
+import core.GitHubAccess;
 import core.Paths;
 import core.ProductGate;
+import core.TokenStore;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.dnd.Clipboard;
@@ -41,6 +43,54 @@ public final class SettingsSheet extends SheetShell {
         title.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         GlassButton done = new GlassButton(header, palette, "Done", GlassButton.Style.TOOL);
         done.addListener(SWT.Selection, e -> sheet.close());
+
+        // ── GitHub access token ──
+        Composite access = card(body, "GitHub Access", Glass.Glyph.KEY, palette.accent());
+        bodyText(access, "Paste a GitHub token with Contents:read on the app repos if this "
+                + "build has no embedded token. It is stored in Support/github-token (0600).");
+        Composite tokenRow = new Composite(access, SWT.NO_BACKGROUND);
+        tokenRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridLayout tr = new GridLayout(3, false);
+        tr.marginWidth = 0; tr.marginHeight = 0; tr.horizontalSpacing = 8;
+        tokenRow.setLayout(tr);
+        Text token = new Text(tokenRow, SWT.SINGLE | SWT.BORDER | SWT.PASSWORD);
+        token.setMessage("GitHub token (optional)");
+        token.setFont(palette.body);
+        token.setBackground(palette.card);
+        token.setForeground(palette.textPrimary);
+        token.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        Label tokenResult = new Label(access, SWT.WRAP | SWT.NO_BACKGROUND);
+        tokenResult.setFont(palette.caption);
+        tokenResult.setForeground(palette.textMuted);
+        tokenResult.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+        tokenResult.setText(TokenStore.present()
+                ? "A token is saved in this launcher's Support folder."
+                : (GitHubAccess.resolve() != null
+                    ? "Using an embedded/environment/gh token; no saved token."
+                    : "No token available — updates cannot reach the repos."));
+        GlassButton saveToken = new GlassButton(tokenRow, palette, "Save", GlassButton.Style.TOOL);
+        saveToken.addListener(SWT.Selection, e -> {
+            try {
+                TokenStore.set(token.getText());
+                GitHubAccess.invalidate();
+                token.setText("");
+                tokenResult.setText(TokenStore.present()
+                        ? "Token saved. Update checks will use it."
+                        : "Token cleared.");
+                window.updates().checkForUpdates();
+            } catch (IOException failure) {
+                tokenResult.setText("Could not save token: " + failure.getMessage());
+            }
+        });
+        GlassButton clearToken = new GlassButton(tokenRow, palette, "Clear", GlassButton.Style.TOOL);
+        clearToken.addListener(SWT.Selection, e -> {
+            try {
+                TokenStore.set(null);
+                GitHubAccess.invalidate();
+                tokenResult.setText("Saved token removed.");
+            } catch (IOException ignored) {
+            }
+        });
 
         // ── Activation & keychain ──
         Composite gate = card(body, "Product Activation", Glass.Glyph.LOCK, palette.accent());

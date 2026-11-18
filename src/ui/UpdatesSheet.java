@@ -1,7 +1,6 @@
 package ui;
 
 import core.Catalog;
-import core.EmbeddedToken;
 import core.InstallEngine;
 import core.LauncherState;
 import core.Paths;
@@ -144,11 +143,12 @@ public final class UpdatesSheet extends SheetShell {
 
         // GitHub access status (compact; editing lives in Settings)
         Composite access = card(body, "GitHub Access", Glass.Glyph.KEY, palette.accent());
-        bodyText(access, EmbeddedToken.VALUE.isBlank()
-                ? (core.TokenStore.present()
-                    ? "Using the token saved in this launcher's Support folder. Manage it in Settings."
-                    : "No saved token — embedded build token absent. Set one in Settings.")
-                : "This build carries FromBigM's read-only release token — updates work out of the box.");
+        String source = !core.TokenStore.present()
+                ? "No saved token."
+                : "Using the token saved in Support/github-token.";
+        bodyText(access, source + (core.GitHubAccess.resolve() != null
+                ? " Updates can reach GitHub. Manage tokens in Settings."
+                : " No usable token found — add one in Settings → GitHub Access."));
 
         bodyText(body, "Updates come from github.com/fromthebigm over HTTPS. Installs replace app "
                 + "files in place — the launcher's Support folder and each app's data folder "
