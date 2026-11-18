@@ -29,8 +29,12 @@ public abstract class SheetShell {
         sheet.setText(title);
         sheet.setSize(width, height);
         sheet.setBackground(palette.chromeDeep);
-        sheet.addPaintListener(e -> Glass.paintBackdrop(e.gc, palette, sheet.getClientArea(),
-                window.config().backgroundStyle()));
+        // Sheets use solid chrome, matching the SwiftUI face: the mountain
+        // scene belongs to the main window only, not to modal settings panels.
+        sheet.addPaintListener(e -> {
+            e.gc.setBackground(palette.chromeDeep);
+            e.gc.fillRectangle(sheet.getClientArea());
+        });
     }
 
     public void open() {
