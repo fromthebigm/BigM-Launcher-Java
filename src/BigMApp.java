@@ -97,6 +97,9 @@ public final class BigMApp {
                 window.shell().open();
                 display.timerExec(1500, () -> {
                     org.eclipse.swt.widgets.Shell s = window.shell();
+                    s.forceActive();
+                    s.setFocus();
+                    display.update();
                     s.update();
                     var sz = s.getSize();
                     var img = new org.eclipse.swt.graphics.Image(display, sz.x, sz.y);
