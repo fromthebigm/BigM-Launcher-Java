@@ -22,6 +22,10 @@ public final class SelfCapture {
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     private static final MethodHandle SEND1 = down(OBJC, "objc_msgSend",
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    private static final MethodHandle SEND_INT_ARG = down(OBJC, "objc_msgSend",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    private static final MethodHandle SEND_INT0 = down(OBJC, "objc_msgSend",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     private static final MethodHandle SEND_COUNT = down(OBJC, "objc_msgSend",
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     private static final MethodHandle SEND_BOOL = down(OBJC, "objc_msgSend",
@@ -60,7 +64,9 @@ public final class SelfCapture {
                 long num = (long) down(OBJC, "objc_msgSend", FunctionDescriptor.of(
                         ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS))
                         .invoke(numObj, sel("longLongValue"));
-                if (n.equals(title)) return num;
+                MemorySegment pidObj = (MemorySegment) SEND1.invoke(dict, sel("objectForKey:"), ns("kCGWindowOwnerPID"));
+                int owner = pidObj == null || pidObj.address() == 0 ? 0 : (int) SEND_INT0.invoke(pidObj, sel("intValue"));
+                if ((!title.isEmpty() && n.equals(title)) || (title.isEmpty() && owner == ProcessHandle.current().pid())) return num;
             }
         } catch (Throwable ignored) {}
         return 0;

@@ -121,7 +121,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
 
         shell = new Shell(display, SWT.SHELL_TRIM);
         WindowChrome.transparentTitleBar(shell);
-        shell.setText("BigM");
+        shell.setText(""); // hidden-title-bar look: no native title text
         shell.setSize(1180, 760);
         shell.setMinimumSize(new Point(900, 560));
         shell.setBackgroundMode(SWT.INHERIT_DEFAULT);
