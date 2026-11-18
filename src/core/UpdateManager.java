@@ -43,7 +43,14 @@ public final class UpdateManager {
     public LauncherState state() { return state; }
 
     /** Run a quick side quest on the shared workers (UI discovery sweeps). */
-    public void runBackground(Runnable task) { workers.execute(task); }
+    public void runBackground(Runnable task) {
+        try { workers.execute(task); }
+        catch (java.util.concurrent.RejectedExecutionException ignored) {
+            // A display timer can fire while the window is disposing and the
+            // pool is shutting down; that is a normal shutdown race, not a
+            // failure worth killing the app over.
+        }
+    }
 
     private void log(String level, String appId, String message) {
         try {

@@ -36,7 +36,9 @@ fi
 # to find a local java runtime" — same discipline as Rigel's launchers).
 chmod -f +x "$ROOT"/*.sh 2>/dev/null || true
 chmod -f +x "$ROOT/jdk/Contents/Home/bin/"* 2>/dev/null || true
-xattr -dr com.apple.quarantine "$ROOT" 2>/dev/null || true
+xattr -dr com.apple.quarantine \
+  "$ROOT/jdk" "$ROOT/lib" "$ROOT/target" "$ROOT/Resources" \
+  "$ROOT"/*.sh "$ROOT"/*.icns "$ROOT"/*.png 2>/dev/null || true
 
 # ── Detach from the invoker's lifetime ────────────────────────────────────
 # When Blendt (or a terminal, or any parent) starts BigM, closing that
@@ -44,8 +46,19 @@ xattr -dr com.apple.quarantine "$ROOT" 2>/dev/null || true
 # on a parked log, and let launchd re-parent us. The launcher owns its own
 # lifetime; --ui-smoke/--self-test style runs keep this too (they finish
 # on their own). BIGM_JAVA_DETACHED already-set means we're the inner copy.
+mkdir -p "$ROOT/Support" 2>/dev/null || true
+if [ ! -w "$ROOT/Support" ]; then
+    printf '%s\n' "BigM Launcher: cannot write $ROOT/Support (check folder permissions)." >&2
+    exit 1
+fi
+
+# --foreground skips the detach so startup errors are visible in the terminal.
+if [ "${1:-}" = "--foreground" ]; then
+    shift
+    exec "$ROOT/run-bigm.sh" "$@"
+fi
+
 if [ -z "${BIGM_JAVA_DETACHED:-}" ]; then
-    mkdir -p "$ROOT/Support"
     LOG="$ROOT/Support/runner.log"
     (
         nohup env BIGM_JAVA_DETACHED=1 "$ROOT/run.sh" "$@" >>"$LOG" 2>&1 &
