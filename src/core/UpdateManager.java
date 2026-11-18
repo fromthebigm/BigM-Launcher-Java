@@ -430,6 +430,11 @@ public final class UpdateManager {
             } catch (Exception failure) {
                 // fall through to the fallback chain
             }
+        } else {
+            // Repos are public: unauthenticated GitHub API access is enough
+            // for release checks and asset downloads (60 req/hour). A token
+            // is an optional enhancement, never a requirement.
+            try { return call.apply(null); } catch (Exception ignored) { }
         }
         for (String fallback : GitHubAccess.fallbackTokens(token)) {
             if (fallback == null || fallback.isBlank()) continue;

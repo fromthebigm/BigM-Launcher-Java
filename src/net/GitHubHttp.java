@@ -119,13 +119,13 @@ public final class GitHubHttp {
 
     private static Answer httpClientGet(String url, String token, Duration timeout)
             throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .timeout(timeout)
                 .header("Accept", "application/vnd.github+json")
                 .header("X-GitHub-Api-Version", "2022-11-28")
-                .header("Authorization", "Bearer " + token)
-                .header("User-Agent", "bigm-java")
-                .GET().build();
+                .header("User-Agent", "bigm-java");
+        if (token != null && !token.isBlank()) builder.header("Authorization", "Bearer " + token.trim());
+        HttpRequest request = builder.GET().build();
         HttpResponse<byte[]> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
         return new Answer(response.statusCode(), response.headers().map(), response.body());
     }
@@ -133,13 +133,13 @@ public final class GitHubHttp {
     /** Direct probe without redirect-following, asking for octet-stream. */
     private static Answer httpClientProbe(String url, String token, Duration timeout)
             throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .timeout(timeout)
                 .header("Accept", "application/octet-stream")
                 .header("X-GitHub-Api-Version", "2022-11-28")
-                .header("Authorization", "Bearer " + token)
-                .header("User-Agent", "bigm-java")
-                .GET().build();
+                .header("User-Agent", "bigm-java");
+        if (token != null && !token.isBlank()) builder.header("Authorization", "Bearer " + token.trim());
+        HttpRequest request = builder.GET().build();
         // Probe semantics: following the redirect would hand the token (or
         // the substituted page) to whatever answers the Location; the probe
         // exists to READ the Location, never to visit it from here.

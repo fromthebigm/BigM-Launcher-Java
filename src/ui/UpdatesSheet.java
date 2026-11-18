@@ -148,7 +148,7 @@ public final class UpdatesSheet extends SheetShell {
                 : "Using the token saved in Support/github-token.";
         bodyText(access, source + (core.GitHubAccess.resolve() != null
                 ? " Updates can reach GitHub. Manage tokens in Settings."
-                : " No usable token found — add one in Settings → GitHub Access."));
+                : " No token: public repos work anonymously; some private app repos need one in Settings → GitHub Access."));
 
         bodyText(body, "Updates come from github.com/fromthebigm over HTTPS. Installs replace app "
                 + "files in place — the launcher's Support folder and each app's data folder "

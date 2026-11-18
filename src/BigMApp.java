@@ -436,8 +436,7 @@ public final class BigMApp {
         try {
             java.nio.file.Path root = e2eRoot();
             core.Catalog catalog = core.Catalog.load();
-            String token = core.GitHubAccess.resolve();
-            if (token == null) { System.out.println("check-e2e: FAIL: no token"); return 1; }
+            String token = core.GitHubAccess.resolve(); // null = anonymous public access
             int failures = 0;
             for (core.Catalog.AppDef app : catalog.apps()) {
                 if (!app.updatable()) continue;
