@@ -247,9 +247,16 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         sidebar.addPaintListener(e -> {
             Rectangle b = sidebar.getClientArea();
             e.gc.setAdvanced(true);
-            e.gc.setAlpha(224);
-            e.gc.setBackground(palette.chromeRaised);
-            e.gc.fillRectangle(b);
+            // SwiftUI sidebar is a vertical chrome gradient (0.9 -> 0.7)
+            // over the scene, not a flat panel.
+            int bands = Math.max(2, b.height / 8);
+            for (int i = 0; i < bands; i++) {
+                double f = (double) i / (bands - 1);
+                e.gc.setAlpha((int) Math.round(230 - 50 * f));
+                e.gc.setBackground(palette.chromeRaised);
+                e.gc.fillRectangle(b.x, b.y + i * b.height / bands,
+                        b.width, b.height / bands + 1);
+            }
             e.gc.setAlpha(255);
             // hairline divider on the right edge
             e.gc.setForeground(palette.separator);

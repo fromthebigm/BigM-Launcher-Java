@@ -154,14 +154,8 @@ public final class AppCard extends Composite {
             }
             picker.addListener(SWT.Selection, e ->
                     window.setProfileChoice(app.id(), profiles.get(picker.index()).id()));
-        } else if (!profiles.isEmpty()) {
-            Label pill = new Label(this, SWT.NO_BACKGROUND);
-            pill.setText("▣  " + profiles.get(0).name());
-            pill.setFont(palette.small);
-            pill.setForeground(palette.textMuted);
-            GridData pd = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-            pill.setLayoutData(pd);
         }
+        // Single-profile pill removed: the SwiftUI card has no profile row.
 
         // Row 4: update/status line + progress
         statusLine = new Label(this, SWT.WRAP | SWT.NO_BACKGROUND);
