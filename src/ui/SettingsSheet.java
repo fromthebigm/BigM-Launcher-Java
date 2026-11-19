@@ -46,8 +46,8 @@ public final class SettingsSheet extends SheetShell {
 
         // ── GitHub access token ──
         Composite access = card(body, "GitHub Access", Glass.Glyph.KEY, palette.accent());
-        bodyText(access, "Paste a GitHub token with Contents:read on the app repos if this "
-                + "build has no embedded token. It is stored in Support/github-token (0600).");
+        bodyText(access, "All FromBigM repos are private. Release builds carry a token; source builds need one here. "
+                + "It is stored in Support/github-token (0600).");
         Composite tokenRow = new Composite(access, SWT.NO_BACKGROUND);
         tokenRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         GridLayout tr = new GridLayout(3, false);

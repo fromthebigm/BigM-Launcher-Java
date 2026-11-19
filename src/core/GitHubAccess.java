@@ -124,7 +124,19 @@ public final class GitHubAccess {
                 return null;
             }
         }
-        return raw.isBlank() ? null : raw.trim();
+        if (!raw.isBlank()) return raw.trim();
+        // Final fallback: the gh CLI itself (HOME points at the real machine
+        // home before run.sh redirects it). No prompt, no custom dylib.
+        try {
+            ProcessBuilder pb = new ProcessBuilder("gh", "auth", "token");
+            pb.environment().put("HOME", Paths.realHome().toString());
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String token = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (p.waitFor() == 0 && !token.isEmpty() && !token.contains(" ")) return token;
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     /** The owner's rotation token lives in the launcher repo itself, readable
