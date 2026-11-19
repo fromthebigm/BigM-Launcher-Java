@@ -161,6 +161,9 @@ public final class Glass {
             gc.setAlpha(255);
             // diagonal gradient body
             int bands = Math.max(8, Math.min(64, h));
+            // Translucent card body: the SwiftUI card lets the mountain
+            // scene breathe through; opaque fill was hiding the backdrop.
+            gc.setAlpha(180);
             for (int i = 0; i < bands; i++) {
                 double f = (double) i / (bands - 1);
                 Color c = new Color(gc.getDevice(), ui.SwiftPalette.mix(top, bottom, f));
@@ -170,6 +173,7 @@ public final class Glass {
                         i == 0 ? radius * 2 : 0, i == 0 ? radius * 2 : 0);
                 c.dispose();
             }
+            gc.setAlpha(255);
             // accent hairline
             gc.setForeground(cAccent);
             gc.setAlpha(90);

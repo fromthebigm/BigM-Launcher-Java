@@ -82,6 +82,7 @@ public final class BigMApp {
         int shotAt = argList.indexOf("--shot");
         int sheetShotAt = argList.indexOf("--sheet-shot");
         int screenShotAt = argList.indexOf("--screen-shot");
+        int screenOnlyAt = argList.indexOf("--screen-only");
         int faceShotAt = argList.indexOf("--face-shot");
         int sceneShotAt = argList.indexOf("--scene-shot");
         boolean actionE2E = argList.contains("--action-e2e");
@@ -122,6 +123,21 @@ public final class BigMApp {
                 window.shell().dispose();
                 display.dispose();
                 System.exit(ok ? 0 : 1);
+                return;
+            }
+            if (screenOnlyAt >= 0) {
+                String path = screenOnlyAt + 1 < argList.size()
+                        ? argList.get(screenOnlyAt + 1) : "/tmp/bigm-screen-only.png";
+                window.shell().open();
+                display.timerExec(1500, () -> {
+                    boolean ok = ui.SelfCapture.captureScreen(path);
+                    System.out.println("screen-only: " + (ok ? "wrote " + path : "FAILED"));
+                    for (org.eclipse.swt.widgets.Shell sh : display.getShells()) sh.dispose();
+                });
+                while (!window.shell().isDisposed()) {
+                    if (!display.readAndDispatch()) display.sleep();
+                }
+                display.dispose();
                 return;
             }
             if (screenShotAt >= 0) {

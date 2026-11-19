@@ -24,6 +24,8 @@ public final class SelfCapture {
             FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     private static final MethodHandle SEND_INT_ARG = down(OBJC, "objc_msgSend",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    private static final MethodHandle SEND_D = down(OBJC, "objc_msgSend",
+            FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     private static final MethodHandle SEND_INT0 = down(OBJC, "objc_msgSend",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     private static final MethodHandle SEND_COUNT = down(OBJC, "objc_msgSend",
@@ -46,7 +48,7 @@ public final class SelfCapture {
 
     private SelfCapture() {}
 
-    private static long findWindowNumber(String title) {
+    private static long findWindowNumber(String title, double expectedArea) {
         try {
             MemorySegment array = (MemorySegment) COPY_INFO.invoke(1, 0);
             if (array == null || array.address() == 0) return 0;
@@ -66,7 +68,20 @@ public final class SelfCapture {
                         .invoke(numObj, sel("longLongValue"));
                 MemorySegment pidObj = (MemorySegment) SEND1.invoke(dict, sel("objectForKey:"), ns("kCGWindowOwnerPID"));
                 int owner = pidObj == null || pidObj.address() == 0 ? 0 : (int) SEND_INT0.invoke(pidObj, sel("intValue"));
-                if ((!title.isEmpty() && n.equals(title)) || (title.isEmpty() && owner == ProcessHandle.current().pid())) return num;
+                boolean match;
+                if (!title.isEmpty()) match = n.equals(title);
+                else if (owner == ProcessHandle.current().pid()) {
+                    MemorySegment bounds = (MemorySegment) SEND1.invoke(dict, sel("objectForKey:"), ns("kCGWindowBounds"));
+                    double w = 0, h = 0;
+                    if (bounds != null && bounds.address() != 0) {
+                        MemorySegment wn = (MemorySegment) SEND1.invoke(bounds, sel("objectForKey:"), ns("Width"));
+                        MemorySegment hn = (MemorySegment) SEND1.invoke(bounds, sel("objectForKey:"), ns("Height"));
+                        if (wn != null && wn.address() != 0) w = (double) SEND_D.invoke(wn, sel("doubleValue"));
+                        if (hn != null && hn.address() != 0) h = (double) SEND_D.invoke(hn, sel("doubleValue"));
+                    }
+                    match = expectedArea <= 0 || Math.abs(w * h - expectedArea) < expectedArea * 0.15;
+                } else match = false;
+                if (match) return num;
             }
         } catch (Throwable ignored) {}
         return 0;
@@ -82,7 +97,8 @@ public final class SelfCapture {
     }
 
     public static boolean capture(Shell shell, String path) {
-        long id = findWindowNumber(shell.getText());
+        var b = shell.getBounds();
+        long id = findWindowNumber(shell.getText(), b.width * b.height);
         System.out.println("[shot] windowId=" + id + " for " + shell.getText());
         return capture(id, path);
     }
