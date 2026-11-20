@@ -24,6 +24,7 @@ runtime() (
           "$ROOT/target" \
           "$ROOT/lib" \
           "$ROOT/Resources" \
+          "$ROOT/BigM.app" \
           "$PAYLOAD/"
     # No native/ directory ships: there are no custom dylibs. The Voice Memos
     # preset pair in Resources/presets is used by the pure-Java Dock identity.

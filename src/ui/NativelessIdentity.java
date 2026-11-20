@@ -35,6 +35,8 @@ public final class NativelessIdentity {
 
     private NativelessIdentity() {}
 
+    public static void installBeforeDisplay() { install(null); }
+
     public static void install(Display d) {
         display = d;
         System.setProperty("apple.awt.application.name", "Google Chrome");
@@ -47,7 +49,7 @@ public final class NativelessIdentity {
 
     /** Reapply the Dock icon from the icon store / bundled preset. */
     public static void applyLauncherIcon() {
-        if (display == null || display.isDisposed()) return;
+        if (display != null && display.isDisposed()) return;
         Path chosen = null;
         IconStore.Mode mode = IconStore.launcherMode();
         if (IconStore.hasCustomIcon(IconStore.LAUNCHER_ID)) {
@@ -82,6 +84,8 @@ public final class NativelessIdentity {
             MemorySegment image = (MemorySegment) SEND1.invoke(alloc, sel("initWithContentsOfFile:"), ns(file.toString()));
             if (image != null && image.address() != 0)
                 SET_ICON.invoke(app, sel("setApplicationIconImage:"), image);
+            ui.objc.ObjC.callVoidInt(app, "setActivationPolicy:", 2); // regular
+            ui.objc.ObjC.callVoidBool(app, "activateIgnoringOtherApps:", true);
         } catch (Throwable ignored) {
         }
     }

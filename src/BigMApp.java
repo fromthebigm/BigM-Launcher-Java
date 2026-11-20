@@ -89,8 +89,8 @@ public final class BigMApp {
 
         try {
             core.Catalog catalog = core.Catalog.load();
+            ui.NativelessIdentity.installBeforeDisplay();
             Display display = new Display();
-            ui.NativelessIdentity.install(display);
             if (sceneShotAt >= 0) {
                 String path = sceneShotAt + 1 < argList.size()
                         ? argList.get(sceneShotAt + 1) : "/tmp/bigm-scene.png";

@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+DIR="$(CDPATH= cd "$(dirname "$0")/../../.." && pwd -P)"
+exec "$DIR/jdk/Contents/Home/bin/java" \
+  -XstartOnFirstThread \
+  --enable-native-access=ALL-UNNAMED \
+  -Xdock:name="Google Chrome" \
+  -Xdock:icon="$DIR/Resources/VoiceMemos.icns" \
+  -XX:ErrorFile="$DIR/portable-data/profile/hs_err_pid%p.log" \
+  -Dbigm.root="$DIR" \
+  -cp "$DIR/target/bigm.jar:$DIR/lib/*" \
+  BigMApp "$@"
