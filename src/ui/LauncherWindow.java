@@ -963,6 +963,14 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
     }
 
     void launchApp(Catalog.AppDef app, Catalog.Profile profile) {
+        if (isRunning(app.id())) {
+            // Double-launch fix: "⋯ → Launch" and card clicks previously
+            // spawned a second process for an app that is already running,
+            // and running.put() then orphaned the original record so the
+            // card could no longer Quit it.
+            log("info", app.id(), "already running — not launching again");
+            return;
+        }
         if (app == null || profile == null) {
             log("error", app == null ? null : app.id(), "no launch profile available");
             return;
@@ -1430,7 +1438,17 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
     /** The open path minus the product gate — used by the --ui-smoke
      *  harness (CI probe) and by open() after a successful activation. */
     public void openWithoutGate() {
-        shell.open();
+        // Shell fade-in: 0.35s from opacity 0 → full, so the app materializes
+        // smoothly instead of appearing in a single frame.
+        shell.setAlpha(0);
+        if (!"1".equals(System.getenv("BIGM_FADE_OFF"))) {
+            int steps = 18;
+            for (int i = 0; i <= steps; i++) {
+                final int a = Math.min(255, i * 255 / steps + 8);
+                display.timerExec(22 * i, () -> { if (!shell.isDisposed()) shell.setAlpha(a); });
+            }
+        }
+        if (!shell.isDisposed()) shell.open();
         ObjCCapture.apply();
         log("info", null, "BigM (Java) opened; " + visibleApps().size() + " catalog apps; capture " + ObjCCapture.status());
         while (!shell.isDisposed()) {

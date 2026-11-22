@@ -13,6 +13,9 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+
 
 /**
  * One library card (the SwiftUI LauncherAppCard): tinted icon chip, name,
@@ -35,6 +38,29 @@ public final class AppCard extends Composite {
     private final GlassButton updateButton;   // Update to <tag>
     private final Label statsLine;
     private final boolean[] hover = {false};
+    private final long createdMs = System.currentTimeMillis();
+    static final int ENTRANCE_MS = 450;
+    static final java.util.concurrent.ConcurrentHashMap.KeySetView<AppCard, Boolean> ANIMATING
+            = ConcurrentHashMap.newKeySet();
+
+    /** Pumps repaints every ~20ms while the entrance animation runs. Uses
+     *  the display timer (the idiomatic SWT mechanism) instead of a
+     *  dedicated pool so teardown is fully covered by isDisposed(). */
+    private void scheduleEntranceFrame() {
+        window.shell().getDisplay().timerExec(20, () -> {
+            if (isDisposed() || window.shell().isDisposed()) {
+                ANIMATING.remove(AppCard.this);
+                return;
+            }
+            long now = System.currentTimeMillis();
+            if (now - createdMs < ENTRANCE_MS) {
+                redraw();
+                scheduleEntranceFrame();
+            } else {
+                ANIMATING.remove(AppCard.this);
+            }
+        });
+    }
 
     AppCard(LauncherWindow window, Composite parent, Catalog.AppDef app) {
         super(parent, SWT.NO_BACKGROUND | SWT.DOUBLE_BUFFERED);
@@ -45,8 +71,25 @@ public final class AppCard extends Composite {
         // Bigger radius + translucent fill: the mountain scene breathes
         // through the cards; hover adds the top sheen (static repaint — no
         // animation loops).
-        addPaintListener(e -> Glass.paintSwiftCard(e.gc, palette, getClientArea(),
-                UiPalette.hex(app.tintHex()), hover[0]));
+        addPaintListener(e -> {
+            // Entry animation: cards drop in from below while the shell
+            // fades in, sliding the translucent fill for ~420ms.
+            double entryPct = Math.min(1.0,
+                    (System.currentTimeMillis() - createdMs) / (double) ENTRANCE_MS);
+            int slide = (int) Math.round((1 - entryPct) * 14);
+            org.eclipse.swt.graphics.Transform tf = new org.eclipse.swt.graphics.Transform(e.gc.getDevice());
+            tf.translate(0, slide);
+            e.gc.setTransform(tf);
+            try {
+                Glass.paintSwiftCard(e.gc, palette, getClientArea(),
+                        UiPalette.hex(app.tintHex()), hover[0], entryPct);
+            } finally {
+                e.gc.setTransform(null);
+                tf.dispose();
+            }
+        });
+        ANIMATING.add(this);
+        if (!"1".equals(System.getenv("BIGM_PUMP_OFF"))) scheduleEntranceFrame();
         addListener(SWT.MouseEnter, e -> { hover[0] = true; redraw(); });
         addListener(SWT.MouseExit, e -> { hover[0] = false; redraw(); });
 
@@ -299,6 +342,7 @@ public final class AppCard extends Composite {
     }
 
     private void launch() {
+        if (window.isRunning(app.id())) return;
         List<Catalog.Profile> profiles = window.profilesFor(app);
         if (profiles.isEmpty()) return;
         String wanted = window.profileChoice(app.id());

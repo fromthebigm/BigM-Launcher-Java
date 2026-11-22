@@ -143,6 +143,12 @@ public final class Glass {
      *  corner vines, and a soft shadow. No native bridge. */
     public static void paintSwiftCard(GC gc, UiPalette palette, Rectangle b,
                                       RGB tint, boolean hover) {
+        paintSwiftCard(gc, palette, b, tint, hover, 1.0);
+    }
+
+    public static void paintSwiftCard(GC gc, UiPalette palette, Rectangle b,
+                                      RGB tint, boolean hover, double entryPct) {
+        double e = Math.min(1.0, Math.max(0, entryPct));
         gc.setAdvanced(true);
         gc.setAntialias(SWT.ON);
         int x = b.x, y = b.y, w = b.width, h = b.height;
@@ -154,8 +160,8 @@ public final class Glass {
         Color cAccent = new Color(gc.getDevice(), accent);
         Color cShadow = gc.getDevice().getSystemColor(SWT.COLOR_BLACK);
         try {
-            // shadow
-            gc.setAlpha(hover ? 38 : 76);
+            // shadow (enters with the card)
+            gc.setAlpha((int) Math.round((hover ? 38 : 76) * e));
             gc.setBackground(cShadow);
             gc.fillRoundRectangle(x, y + 2, w, h, radius * 2, radius * 2);
             gc.setAlpha(255);
@@ -163,7 +169,7 @@ public final class Glass {
             int bands = Math.max(8, Math.min(64, h));
             // Translucent card body: the SwiftUI card lets the mountain
             // scene breathe through; opaque fill was hiding the backdrop.
-            gc.setAlpha(180);
+            gc.setAlpha((int) Math.round(180 * e));
             for (int i = 0; i < bands; i++) {
                 double f = (double) i / (bands - 1);
                 Color c = new Color(gc.getDevice(), ui.SwiftPalette.mix(top, bottom, f));
@@ -176,7 +182,7 @@ public final class Glass {
             gc.setAlpha(255);
             // accent hairline
             gc.setForeground(cAccent);
-            gc.setAlpha(90);
+            gc.setAlpha((int) Math.round(90 * e));
             gc.drawRoundRectangle(x, y, w - 1, h - 1, radius * 2, radius * 2);
             gc.setAlpha(255);
             // corner vines
@@ -184,6 +190,19 @@ public final class Glass {
             paintVine(gc, cAccent, x + w - 20, y + 2, 90);
             paintVine(gc, cAccent, x + w - 20, y + h - 20, 180);
             paintVine(gc, cAccent, x + 2, y + h - 20, 270);
+            // Aurora sweep: slow translucent ribbons gliding across the card.
+            long ms = System.currentTimeMillis();
+            double t = ((ms / 50) % 340) / 340.0;
+            for (int k = 0; k < 3; k++) {
+                double phase = Math.cos(Math.PI * t + k * 2.2) * 0.5 + 0.5;
+                int ribbonAlpha = (int) (26 + 52 * phase);
+                if (ribbonAlpha <= 0) continue;
+                int ox = (int) (w * (0.05 + 0.92 * t));
+                int oy = (int) (h * (0.78 - 0.42 * Math.sin(t + k * 0.3)));
+                gc.setAlpha(ribbonAlpha);
+                gc.fillOval(x + ox - 62, y + oy - 16, 126, 32);
+            }
+            gc.setAlpha(255);
         } finally {
             cTop.dispose(); cBottom.dispose(); cAccent.dispose();
         }
