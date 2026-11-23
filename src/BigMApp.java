@@ -27,7 +27,7 @@ public final class BigMApp {
         System.err.println("[bigm] main entered");
         // macOS/SWT: the run loop must be thread 0 (run-bigm.sh starts us
         // with -XstartOnFirstThread); this property only records the fact.
-        System.setProperty("apple.awt.application.name", "Google Chrome");
+        System.setProperty("apple.awt.application.name", "BigM");
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
 
         // Headless harness: exercise the whole machine minus the window —
@@ -70,11 +70,12 @@ public final class BigMApp {
         if (argList.contains("--self-update-e2e")) { System.exit(selfUpdateE2E()); return; }
         if (argList.contains("--icons-e2e")) { System.exit(iconsE2E()); return; }
 
-        // ── No-dylib face ─────────────────────────────────────────────────
+        // ── No-custom-dylib face ───────────────────────────────────────
         // The SwiftUI dylib and the presentation-identity dylib are gone.
-        // The face is the pure Java/SWT port of the same Nightwood design;
-        // Dock/menu identity is applied by ui.NativelessIdentity through
-        // public SWT APIs (TaskBar / Display.setAppName), with no FFM bridge.
+        // The face is the pure Java/SWT port of the same Nightwood design.
+        // Dock/menu identity is applied by ui.NativelessIdentity: SWT public
+        // APIs plus FFM calls into Apple's own system frameworks only. No
+        // custom native binary is shipped or loaded.
 
         // ── SWT face ───────────────────────────────────────────────────────
         boolean uiSmoke = java.util.Arrays.asList(args).contains("--ui-smoke");

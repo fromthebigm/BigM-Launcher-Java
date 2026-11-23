@@ -553,7 +553,10 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         scroller = new ScrolledComposite(detailPane, SWT.V_SCROLL | SWT.NO_BACKGROUND);
         scroller.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         scroller.setExpandHorizontal(true);
-        scroller.setExpandVertical(false);
+        // Expand vertically too, and paint the content itself: this covers
+        // AppKit's NSClipView document plate even when the grid is shorter
+        // than the viewport, so no native gray rectangle can show through.
+        scroller.setExpandVertical(true);
         // Clear AppKit's gray NSScrollView/NSClipView document plate; SWT's
         // NO_BACKGROUND alone does not stop native NSClipView painting.
         try {
@@ -572,6 +575,8 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         }
         cardsParent = new Composite(scroller, SWT.NO_BACKGROUND);
         scroller.setContent(cardsParent);
+        cardsParent.addPaintListener(e -> Glass.paintBackdrop(e.gc, palette,
+                cardsParent.getClientArea(), config.backgroundStyle()));
         cardsParent.addListener(SWT.Resize, e -> relayoutGrid());
         Glass.addWheelScroll(scroller);
 

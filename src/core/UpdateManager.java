@@ -209,15 +209,17 @@ public final class UpdateManager {
      *  see a self-replacement in-process.
      *
      *  The script LOGS to Support/self-update/swap.log — if the swap ever
-     *  fails again, that file is the first place to look. The previous
-     *  version used a broken regex to join the rsync command, which left
-     *  the command split across two lines (rsync without source/dest on
-     *  line 1, bare paths on line 2) — the swap silently did nothing and
-     *  the launcher never updated. */
+     *  fails again, that file is the first place to look. The swap is
+     *  transactional: build the new root beside the old one, verify it,
+     *  atomically rename old→.old and new→root, and roll back on failure.
+     *  Never rsync --delete over the live install. */
     static void stageSelfSwap(Path payload, Path root) throws IOException {
         Path helperDir = Paths.support().resolve("self-update");
         Files.createDirectories(helperDir);
-        Path script = helperDir.resolve("swap-and-relaunch.sh");
+        // Run the swap helper from /tmp, not from inside the root being
+        // swapped: otherwise renaming ROOT mid-script can move the script
+        // file out from under the running shell.
+        Path script = Files.createTempFile("bigm-swap-", ".sh");
         Path logFile = helperDir.resolve("swap.log");
 
         String body = """
@@ -257,20 +259,34 @@ public final class UpdateManager {
                     ls -la "$PAYLOAD"
                     exit 1
                 fi
-                echo "running rsync..."
-                /usr/bin/rsync -ac --delete \\
-                    --exclude=Support/ \\
-                    --exclude=portable-data/ \\
-                    --exclude=Support/self-update/ \\
-                    "$PAYLOAD/" "$ROOT/"
-                RSYNC_RC=$?
-                echo "rsync exit code: $RSYNC_RC"
-                if [ "$RSYNC_RC" -ne 0 ]; then
-                    echo "ERROR: rsync failed — launcher NOT updated"
+                echo "transactional swap: build new root beside old root"
+                NEW="$ROOT.new"
+                OLD="$ROOT.old"
+                rm -rf "$NEW" "$OLD"
+                if ! /usr/bin/ditto "$PAYLOAD" "$NEW"; then
+                    echo "ERROR: ditto copy to $NEW failed — launcher NOT updated"
+                    rm -rf "$NEW"
                     exit 1
                 fi
-
-                # Clean up the staging area
+                # Preserve user-owned data from the live root.
+                if [ -d "$ROOT/Support" ]; then
+                    /usr/bin/ditto "$ROOT/Support" "$NEW/Support" || true
+                fi
+                if [ -d "$ROOT/portable-data" ]; then
+                    /usr/bin/ditto "$ROOT/portable-data" "$NEW/portable-data" || true
+                fi
+                if [ ! -f "$NEW/run-bigm.sh" ] || [ ! -x "$NEW/jdk/Contents/Home/bin/java" ]; then
+                    echo "ERROR: staged payload failed verification — launcher NOT updated"
+                    rm -rf "$NEW"
+                    exit 1
+                fi
+                mv "$ROOT" "$OLD" || { echo "ERROR: could not move old root aside"; rm -rf "$NEW"; exit 1; }
+                if ! mv "$NEW" "$ROOT"; then
+                    echo "ERROR: could not promote new root — rolling back"
+                    mv "$OLD" "$ROOT" || echo "FATAL: rollback failed; manual recovery needed"
+                    exit 1
+                fi
+                rm -rf "$OLD"
                 rm -rf "$PAYLOAD"
 
                 # Clear quarantine (a zip-extracted copy arrives with it)

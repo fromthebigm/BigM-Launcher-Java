@@ -165,20 +165,18 @@ public final class Glass {
             gc.setBackground(cShadow);
             gc.fillRoundRectangle(x, y + 2, w, h, radius * 2, radius * 2);
             gc.setAlpha(255);
-            // diagonal gradient body
-            int bands = Math.max(8, Math.min(64, h));
-            // Translucent card body: the SwiftUI card lets the mountain
-            // scene breathe through; opaque fill was hiding the backdrop.
+            // Translucent gradient body. Clip to the rounded silhouette first
+            // so a real linear gradient keeps rounded corners (the old band
+            // loop only rounded the first band and squared the bottom edge).
             gc.setAlpha((int) Math.round(180 * e));
-            for (int i = 0; i < bands; i++) {
-                double f = (double) i / (bands - 1);
-                Color c = new Color(gc.getDevice(), ui.SwiftPalette.mix(top, bottom, f));
-                gc.setBackground(c);
-                int by = y + i * h / bands;
-                gc.fillRoundRectangle(x, by, w, h / bands + 2,
-                        i == 0 ? radius * 2 : 0, i == 0 ? radius * 2 : 0);
-                c.dispose();
-            }
+            Region clip = new Region(gc.getDevice());
+            clip.add(roundedPolygon(x, y, w, h, radius));
+            gc.setClipping(clip);
+            gc.setForeground(cTop);
+            gc.setBackground(cBottom);
+            gc.fillGradientRectangle(x, y, w, h, true);
+            gc.setClipping((Region) null);
+            clip.dispose();
             gc.setAlpha(255);
             // accent hairline
             gc.setForeground(cAccent);

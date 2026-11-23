@@ -26,8 +26,8 @@ runtime() (
           "$ROOT/Resources" \
           "$ROOT/BigM.app" \
           "$PAYLOAD/"
-    # No native/ directory ships: there are no custom dylibs. The Voice Memos
-    # preset pair in Resources/presets is used by the pure-Java Dock identity.
+    # No native/ directory ships: there are no custom dylibs. The bundled
+    # BigM.icns plus Resources/presets drive the no-custom-dylib Dock identity.
     # The dev symlink must become a real copy in the payload.
     if [[ -L "$ROOT/jdk" ]]; then
         rm -rf "$PAYLOAD/jdk-copy-pending" 2>/dev/null
@@ -48,6 +48,15 @@ rm -rf "$PAYLOAD/build" "$PAYLOAD/build.sh" "$PAYLOAD/portable-data"/* 2>/dev/nu
 # Defensive: the product key is invited at first run and must never travel.
 grep -rl "436#2f4w9abg" "$PAYLOAD" >/dev/null 2>&1 && {
     print -u2 "REFUSING TO SHIP: product key found in payload"
+    exit 1
+}
+grep -rIlE 'ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|gho_[A-Za-z0-9_]{20,}|ghs_[A-Za-z0-9_]{20,}|oauth_token:[^ ]+' \
+    "$PAYLOAD" >/dev/null 2>&1 && {
+    print -u2 "REFUSING TO SHIP: possible GitHub token found in payload"
+    exit 1
+}
+find "$PAYLOAD" \( -name '*.dylib' -o -name '*.jnilib' \) -not -path '*/jdk/*' -print -quit | grep -q . && {
+    print -u2 "REFUSING TO SHIP: custom native binary outside signed JDK found in payload"
     exit 1
 }
 xattr -cr "$PAYLOAD" 2>/dev/null || true

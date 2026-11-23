@@ -5,9 +5,9 @@
   <key>CFBundleName</key><string>BigM</string>
   <key>CFBundleDisplayName</key><string>BigM</string>
   <key>CFBundleIdentifier</key><string>com.fromthebigm.bigm-java-portable</string>
-  <key>CFBundleVersion</key><string>0.0.0</string>
+  <key>CFBundleVersion</key><string>portable-2026.10.18.6</string>
   <key>CFBundleExecutable</key><string>BigM</string>
-  <key>CFBundleIconFile</key><string>VoiceMemos.icns</string>
+  <key>CFBundleIconFile</key><string>BigM.icns</string>
   <key>LSHasLocalizedDisplayName</key><true/>
   <key>LSMinimumVRAM</key><integer>0</integer>
 </dict>

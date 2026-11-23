@@ -14,11 +14,11 @@ import java.nio.file.Path;
  *
  * Replaces bigm_identity.dylib for the parts that matter visually:
  *  - menu bar / app name via Display.setAppName + apple.awt.application.name
- *  - Dock icon via SWT TaskBar (bundled Voice Memos preset or picked PNG)
- * No Objective-C runtime calls, no FFM, no custom dylib. Capture exclusion
- * and the keychain token leg are intentionally gone; the former cannot be
- * expressed through public Java/SWT APIs, the latter is covered by the
- * embedded GitHub token and the /usr/bin/security fallback in ProductGate.
+ *  - Dock icon via NSApplication.setApplicationIconImage through FFM into
+ *    Apple's own libobjc/AppKit only (no shipped custom dylib).
+ * Capture exclusion is handled separately by ui.ObjCCapture; the keychain
+ * token leg is covered by the embedded token and the /usr/bin/security
+ * fallback in ProductGate.
  */
 public final class NativelessIdentity {
 
@@ -39,9 +39,9 @@ public final class NativelessIdentity {
 
     public static void install(Display d) {
         display = d;
-        System.setProperty("apple.awt.application.name", "Google Chrome");
-        Display.setAppName("Google Chrome");
-        Display.setAppVersion("1.0");
+        System.setProperty("apple.awt.application.name", "BigM");
+        Display.setAppName("BigM");
+        Display.setAppVersion("portable");
         ObjCCapture.install(d);
         System.err.println("[bigm] capture protection: " + ObjCCapture.status());
         applyLauncherIcon();
