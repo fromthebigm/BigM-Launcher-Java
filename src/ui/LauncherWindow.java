@@ -1195,11 +1195,19 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         rebuildCards();
     }
 
+    /** Remove a cached icon from the maps, but dispose it only on a later
+     *  event-tick: disposing synchronously from a menu handler is what crashed
+     *  the launcher while a paint listener was still holding the old Image. */
     private void dropChip(String appId) {
-        Image stale = chipCache.remove(appId);
-        if (stale != null && !stale.isDisposed()) stale.dispose();
-        Image rawStale = rawIconCache.remove(appId);
-        if (rawStale != null && !rawStale.isDisposed()) rawStale.dispose();
+        scheduleImageDispose(chipCache.remove(appId));
+        scheduleImageDispose(rawIconCache.remove(appId));
+    }
+
+    void dropLauncherChip() { dropChip("_launcher"); }
+
+    private void scheduleImageDispose(Image img) {
+        if (img == null || img.isDisposed() || display.isDisposed()) return;
+        display.timerExec(120, () -> { if (!img.isDisposed()) img.dispose(); });
     }
 
     void revealApp(Catalog.AppDef app) {
@@ -1359,8 +1367,7 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
     }
 
     void dropSystemIcon(String appId) {
-        Image stale = systemIconCache.remove(appId);
-        if (stale != null && !stale.isDisposed()) stale.dispose();
+        scheduleImageDispose(systemIconCache.remove(appId));
     }
 
     /** Full-resolution custom icon PNG for the card canvas — NEVER

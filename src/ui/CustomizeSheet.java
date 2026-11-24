@@ -163,6 +163,7 @@ public final class CustomizeSheet extends SheetShell {
                 return;
             }
             core.IconStore.saveLauncherMode(core.IconStore.Mode.SYSTEM);
+            window.dropLauncherChip();
             core.IconStore.applyLauncherIcon();
             resetLauncherIcon.setEnabled(true);
             iconMsg.setText("Icon updated and applied live.");
@@ -173,6 +174,7 @@ public final class CustomizeSheet extends SheetShell {
         });
         resetLauncherIcon.addListener(SWT.Selection, e -> {
             core.IconStore.resetLauncherIcon();
+            window.dropLauncherChip();
             resetLauncherIcon.setEnabled(false);
             iconMsg.setText("Reset to the bundled Voice Memos icon.");
             ((GridData) iconMsg.getLayoutData()).exclude = false;
