@@ -124,10 +124,9 @@ public final class CustomizeSheet extends SheetShell {
 
         // ── Launcher Icon ──
         Composite iconCard = card(body, "Launcher Icon", Glass.Glyph.CUBE, palette.accent());
-        bodyText(iconCard, "BigM's own Dock icon is set through AppKit (NSApplication.setApplicationIconImage), "
-                + "not SWT's generic folder tile. Pick any app in /Applications and its icon "
-                + "(light and dark variants are both kept) replaces the bundled BigM icon. "
-                + "It is applied live and verified by reading the NSImage back.");
+        bodyText(iconCard, "BigM's own Dock icon follows the Google Chrome convention. Pick any "
+                + "app in /Applications and its icon (light and dark variants are both kept) "
+                + "replaces Voice Memos. It's applied live, no relaunch needed.");
         Composite iconRow = new Composite(iconCard, SWT.NO_BACKGROUND);
         iconRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         GridLayout ir = new GridLayout(2, false);

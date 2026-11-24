@@ -21,17 +21,20 @@ echo "[aitest] ticket-e2e"
 ./run-bigm.sh --ticket-e2e
 
 echo "[aitest] static gates"
-# Identity must be BigM, never a copied browser name.
-if grep -RIn --exclude-dir=portable-data --exclude-dir=build --exclude-dir=target --exclude-dir=dist --exclude-dir=.git 'Google Chrome' \
-    src run.sh run-bigm.sh BigM.app 2>/dev/null; then
-  echo "FAIL: BigM identity still contains 'Google Chrome'" >&2
+# Identity must be Google Chrome, and the launcher must run through java —
+# no BigM.app executable bundle.
+for f in run-bigm.sh src/BigMApp.java src/ui/NativelessIdentity.java; do
+  grep -q 'Google Chrome' "$f" || { echo "FAIL: $f is not Google Chrome identity" >&2; exit 1; }
+done
+if [ -e BigM.app ]; then
+  echo "FAIL: BigM.app exists — launcher must not have its own executable" >&2
   exit 1
 fi
 # No live secrets in sources or packaged resources.
 if grep -RInE --exclude-dir=portable-data --exclude-dir=build --exclude-dir=target --exclude-dir=dist --exclude-dir=.git \
     -e 'ghp_[A-Za-z0-9_]{20,}' -e 'github_pat_[A-Za-z0-9_]{20,}' -e 'gho_[A-Za-z0-9_]{20,}' \
     -e 'ghs_[A-Za-z0-9_]{20,}' -e 'oauth_token:[^ ]+' \
-    src Resources run.sh run-bigm.sh BigM.app 2>/dev/null; then
+    src Resources run.sh run-bigm.sh 2>/dev/null; then
   echo "FAIL: possible secret in sources/resources" >&2
   exit 1
 fi

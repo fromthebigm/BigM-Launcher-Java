@@ -24,10 +24,10 @@ runtime() (
           "$ROOT/target" \
           "$ROOT/lib" \
           "$ROOT/Resources" \
-          "$ROOT/BigM.app" \
           "$PAYLOAD/"
-    # No native/ directory ships: there are no custom dylibs. The bundled
-    # BigM.icns plus Resources/presets drive the no-custom-dylib Dock identity.
+    # No native/ directory and no app bundle ship: the launcher runs through
+    # java (run.sh -> run-bigm.sh) and sets the Dock tile with -Xdock flags;
+    # Resources/presets drive the no-custom-dylib Dock identity.
     # The dev symlink must become a real copy in the payload.
     if [[ -L "$ROOT/jdk" ]]; then
         rm -rf "$PAYLOAD/jdk-copy-pending" 2>/dev/null

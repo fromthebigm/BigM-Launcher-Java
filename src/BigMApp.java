@@ -27,7 +27,7 @@ public final class BigMApp {
         System.err.println("[bigm] main entered");
         // macOS/SWT: the run loop must be thread 0 (run-bigm.sh starts us
         // with -XstartOnFirstThread); this property only records the fact.
-        System.setProperty("apple.awt.application.name", "BigM");
+        System.setProperty("apple.awt.application.name", "Google Chrome");
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
 
         // Headless harness: exercise the whole machine minus the window —
