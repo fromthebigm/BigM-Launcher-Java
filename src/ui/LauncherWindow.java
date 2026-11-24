@@ -1151,10 +1151,18 @@ public final class LauncherWindow implements UpdateManager.Ui, LauncherState.Lis
         dialog.setFilterPath("/Applications");
         String picked = dialog.open();
         if (picked == null) return;
-        if (!core.IconStore.applyCustomIcon(app.id(), Path.of(picked))) {
+        Path pickedPath = Path.of(picked).toAbsolutePath().normalize();
+        boolean ok = false;
+        try {
+            ok = java.nio.file.Files.isDirectory(pickedPath)
+                    && core.IconStore.applyCustomIcon(app.id(), pickedPath);
+        } catch (Throwable t) {
+            ok = false;
+        }
+        if (!ok) {
             MessageBox box = new MessageBox(shell, SWT.ICON_WARNING | SWT.OK);
             box.setText("BigM Launcher");
-            box.setMessage("Could not render an icon from " + Path.of(picked).getFileName() + ".");
+            box.setMessage("Could not render an icon from " + pickedPath.getFileName() + ".");
             box.open();
             return;
         }

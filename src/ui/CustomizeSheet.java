@@ -151,26 +151,49 @@ public final class CustomizeSheet extends SheetShell {
             dialog.setFilterPath("/Applications");
             String picked = dialog.open();
             if (picked == null) return;
-            boolean ok = core.IconStore.applyCustomIcon(core.IconStore.LAUNCHER_ID,
-                    java.nio.file.Path.of(picked));
-            if (!ok) {
-                iconMsg.setText("Could not render an icon from "
-                        + java.nio.file.Path.of(picked).getFileName() + ".");
+            final java.nio.file.Path pickedPath = java.nio.file.Path.of(picked).toAbsolutePath().normalize();
+            final java.nio.file.Path pickedName = pickedPath.getFileName();
+            if (!java.nio.file.Files.isDirectory(pickedPath)) {
+                iconMsg.setText("Not an app bundle: " + pickedName + ".");
                 ((GridData) iconMsg.getLayoutData()).exclude = false;
                 iconMsg.setVisible(true);
                 iconCard.layout(true, true);
                 markContentDirty(plain);
                 return;
             }
-            core.IconStore.saveLauncherMode(core.IconStore.Mode.SYSTEM);
-            window.dropLauncherChip();
-            core.IconStore.applyLauncherIcon();
-            resetLauncherIcon.setEnabled(true);
-            iconMsg.setText("Icon updated and applied live.");
-            ((GridData) iconMsg.getLayoutData()).exclude = false;
-            iconMsg.setVisible(true);
-            iconCard.layout(true, true);
-            markContentDirty(plain);
+            // Render off the UI thread: sips/qlmanage can block, and applying
+            // must happen back on the display thread after the modal closes.
+            changeLauncherIcon.setEnabled(false);
+            new Thread(() -> {
+                boolean ok = false;
+                try {
+                    ok = core.IconStore.applyCustomIcon(core.IconStore.LAUNCHER_ID, pickedPath);
+                } catch (Throwable ignored) {
+                    ok = false;
+                }
+                final boolean renderOk = ok;
+                display().asyncExec(() -> {
+                    if (sheet.isDisposed()) return;
+                    changeLauncherIcon.setEnabled(true);
+                    if (!renderOk) {
+                        iconMsg.setText("Could not render an icon from " + pickedName + ".");
+                        ((GridData) iconMsg.getLayoutData()).exclude = false;
+                        iconMsg.setVisible(true);
+                        iconCard.layout(true, true);
+                        markContentDirty(plain);
+                        return;
+                    }
+                    core.IconStore.saveLauncherMode(core.IconStore.Mode.SYSTEM);
+                    window.dropLauncherChip();
+                    core.IconStore.applyLauncherIcon();
+                    resetLauncherIcon.setEnabled(true);
+                    iconMsg.setText("Icon updated and applied live.");
+                    ((GridData) iconMsg.getLayoutData()).exclude = false;
+                    iconMsg.setVisible(true);
+                    iconCard.layout(true, true);
+                    markContentDirty(plain);
+                });
+            }, "bigm-launcher-icon-render").start();
         });
         resetLauncherIcon.addListener(SWT.Selection, e -> {
             core.IconStore.resetLauncherIcon();

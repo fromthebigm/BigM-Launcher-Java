@@ -44,7 +44,22 @@ public final class NativelessIdentity {
         Display.setAppVersion("1.0");
         ObjCCapture.install(d);
         System.err.println("[bigm] capture protection: " + ObjCCapture.status());
+        setRegularPolicyOnce();
         applyLauncherIcon();
+    }
+
+    /** Set NSApplication activation policy exactly once, guarded. Calling
+     *  activateIgnoringOtherApps: from an icon setter can raise an ObjC
+     *  exception in a bare java process and abort the JVM outside Java's
+     *  catch (Throwable). */
+    private static void setRegularPolicyOnce() {
+        try {
+            MemorySegment app = (MemorySegment) SEND0.invoke(cls("NSApplication"), sel("sharedApplication"));
+            if (ui.objc.ObjC.callBool(app, "respondsToSelector:", ui.objc.ObjC.sel("setActivationPolicy:"))) {
+                ui.objc.ObjC.callVoidInt(app, "setActivationPolicy:", 2); // NSApplicationActivationPolicyRegular
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     /** Reapply the Dock icon from the icon store / bundled preset. */
@@ -82,10 +97,9 @@ public final class NativelessIdentity {
             MemorySegment app = (MemorySegment) SEND0.invoke(cls("NSApplication"), sel("sharedApplication"));
             MemorySegment alloc = (MemorySegment) SEND0.invoke(cls("NSImage"), sel("alloc"));
             MemorySegment image = (MemorySegment) SEND1.invoke(alloc, sel("initWithContentsOfFile:"), ns(file.toString()));
-            if (image != null && image.address() != 0)
+            if (image != null && image.address() != 0
+                    && ui.objc.ObjC.callBool(app, "respondsToSelector:", ui.objc.ObjC.sel("setApplicationIconImage:")))
                 SET_ICON.invoke(app, sel("setApplicationIconImage:"), image);
-            ui.objc.ObjC.callVoidInt(app, "setActivationPolicy:", 2); // regular
-            ui.objc.ObjC.callVoidBool(app, "activateIgnoringOtherApps:", true);
         } catch (Throwable ignored) {
         }
     }
