@@ -185,9 +185,9 @@ public final class UpdateManager {
             InstallEngine.runStatic(
                     List.of("/usr/bin/ditto", "-x", "-k", zip.toString(), extractDir.toString()),
                     null, 60);
-            Path payload = InstallEngine.locatePayloadPublic(extractDir, "run-bigm.sh");
+            Path payload = InstallEngine.locatePayloadPublic(extractDir, "run.sh");
             if (payload == null) {
-                throw new IOException("self-update payload lacks run-bigm.sh");
+                throw new IOException("self-update payload lacks run.sh");
             }
             stageSelfSwap(payload, root);
             state.setDownloadMessage("Staged. BigM will restart to finish installing "
@@ -254,8 +254,8 @@ public final class UpdateManager {
                     echo "ERROR: payload $PAYLOAD does not exist"
                     exit 1
                 fi
-                if [ ! -f "$PAYLOAD/run-bigm.sh" ]; then
-                    echo "ERROR: payload lacks run-bigm.sh — not a valid BigM zip"
+                if [ ! -f "$PAYLOAD/run.sh" ]; then
+                    echo "ERROR: payload lacks run.sh — not a valid BigM zip"
                     ls -la "$PAYLOAD"
                     exit 1
                 fi
@@ -275,7 +275,7 @@ public final class UpdateManager {
                 if [ -d "$ROOT/portable-data" ]; then
                     /usr/bin/ditto "$ROOT/portable-data" "$NEW/portable-data" || true
                 fi
-                if [ ! -f "$NEW/run-bigm.sh" ] || [ ! -x "$NEW/jdk/Contents/Home/bin/java" ]; then
+                if [ ! -f "$NEW/run.sh" ] || [ ! -x "$NEW/jdk/Contents/Home/bin/java" ]; then
                     echo "ERROR: staged payload failed verification — launcher NOT updated"
                     rm -rf "$NEW"
                     exit 1

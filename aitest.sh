@@ -15,15 +15,15 @@ echo "[aitest] build"
 tail -3 /tmp/bigm-aitest-build.log
 
 echo "[aitest] self-test"
-./run-bigm.sh --self-test
+./run.sh --self-test
 
 echo "[aitest] ticket-e2e"
-./run-bigm.sh --ticket-e2e
+./run.sh --ticket-e2e
 
 echo "[aitest] static gates"
 # Identity must be Google Chrome, and the launcher must run through java —
 # no BigM.app executable bundle.
-for f in run-bigm.sh src/BigMApp.java src/ui/NativelessIdentity.java; do
+for f in run.sh src/BigMApp.java src/ui/NativelessIdentity.java; do
   grep -q 'Google Chrome' "$f" || { echo "FAIL: $f is not Google Chrome identity" >&2; exit 1; }
 done
 if [ -e BigM.app ]; then
@@ -34,7 +34,7 @@ fi
 if grep -RInE --exclude-dir=portable-data --exclude-dir=build --exclude-dir=target --exclude-dir=dist --exclude-dir=.git \
     -e 'ghp_[A-Za-z0-9_]{20,}' -e 'github_pat_[A-Za-z0-9_]{20,}' -e 'gho_[A-Za-z0-9_]{20,}' \
     -e 'ghs_[A-Za-z0-9_]{20,}' -e 'oauth_token:[^ ]+' \
-    src Resources run.sh run-bigm.sh 2>/dev/null; then
+    src Resources run.sh run.sh 2>/dev/null; then
   echo "FAIL: possible secret in sources/resources" >&2
   exit 1
 fi
@@ -44,7 +44,7 @@ fi
 # binary path.
 if grep -RInE --exclude-dir=portable-data --exclude-dir=build --exclude-dir=target --exclude-dir=dist --exclude-dir=.git \
     -e 'System\.load\(' -e 'System\.loadLibrary\(' -e 'libraryLookup\("[^"]+\.dylib' \
-    src run.sh run-bigm.sh 2>/dev/null | grep -v '/usr/lib/libobjc.A.dylib' \
+    src run.sh run.sh 2>/dev/null | grep -v '/usr/lib/libobjc.A.dylib' \
     | grep -vE '/System/Library|/usr/lib/'; then
   echo "FAIL: custom native binary load found" >&2
   exit 1
@@ -52,12 +52,12 @@ fi
 
 if [[ "$GUI" == "1" ]]; then
   echo "[aitest] gui ui-audit (capture diagnostic mode)"
-  BIGM_DIAGNOSTIC_CAPTURE=1 timeout 120 ./run-bigm.sh --ui-audit || { echo "FAIL: ui-audit" >&2; exit 1; }
+  BIGM_DIAGNOSTIC_CAPTURE=1 timeout 120 ./run.sh --ui-audit || { echo "FAIL: ui-audit" >&2; exit 1; }
   echo "[aitest] gui action-e2e"
-  BIGM_DIAGNOSTIC_CAPTURE=1 timeout 120 ./run-bigm.sh --action-e2e || { echo "FAIL: action-e2e" >&2; exit 1; }
+  BIGM_DIAGNOSTIC_CAPTURE=1 timeout 120 ./run.sh --action-e2e || { echo "FAIL: action-e2e" >&2; exit 1; }
   echo "[aitest] gui screenshots"
-  BIGM_DIAGNOSTIC_CAPTURE=1 timeout 120 ./run-bigm.sh --shot /tmp/bigm-aitest-shot.png || true
-  BIGM_DIAGNOSTIC_CAPTURE=1 timeout 120 ./run-bigm.sh --sheet-shot /tmp/bigm-aitest-sheet.png || true
+  BIGM_DIAGNOSTIC_CAPTURE=1 timeout 120 ./run.sh --shot /tmp/bigm-aitest-shot.png || true
+  BIGM_DIAGNOSTIC_CAPTURE=1 timeout 120 ./run.sh --sheet-shot /tmp/bigm-aitest-sheet.png || true
 fi
 
 echo "AITEST PASS"

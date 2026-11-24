@@ -20,13 +20,13 @@ mkdir -p "$PAYLOAD/portable-data/profile" "$PAYLOAD/Support"
 runtime() (
     set -e
     cp -R "$ROOT/run.sh" \
-          "$ROOT/run-bigm.sh" \
+          "$ROOT/run.sh" \
           "$ROOT/target" \
           "$ROOT/lib" \
           "$ROOT/Resources" \
           "$PAYLOAD/"
     # No native/ directory and no app bundle ship: the launcher runs through
-    # java (run.sh -> run-bigm.sh) and sets the Dock tile with -Xdock flags;
+    # java (run.sh -> run.sh) and sets the Dock tile with -Xdock flags;
     # Resources/presets drive the no-custom-dylib Dock identity.
     # The dev symlink must become a real copy in the payload.
     if [[ -L "$ROOT/jdk" ]]; then

@@ -25,7 +25,7 @@ public final class BigMApp {
     public static void main(String[] args) {
         argsSnapshot = args;
         System.err.println("[bigm] main entered");
-        // macOS/SWT: the run loop must be thread 0 (run-bigm.sh starts us
+        // macOS/SWT: the run loop must be thread 0 (run.sh starts us
         // with -XstartOnFirstThread); this property only records the fact.
         System.setProperty("apple.awt.application.name", "Google Chrome");
         System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua");
@@ -57,7 +57,7 @@ public final class BigMApp {
 
         // End-to-end harnesses (the Swift VerifyUpdates.swift equivalents):
         // real network, real payloads, scratch roots only — they never touch
-        // the dev tree. Run via run-bigm.sh to inherit HOME discipline.
+        // the dev tree. Run via run.sh to inherit HOME discipline.
         java.util.List<String> argList = java.util.Arrays.asList(args);
         if (argList.contains("--check-e2e")) { System.exit(checkE2E()); return; }
         if (argList.contains("--install-e2e")) {
@@ -92,6 +92,12 @@ public final class BigMApp {
             core.Catalog catalog = core.Catalog.load();
             ui.NativelessIdentity.installBeforeDisplay();
             Display display = new Display();
+            // Re-apply the persisted Dock icon once AppKit/SWT are actually
+            // running: a setApplicationIconImage: call before the AppKit run
+            // loop is up can be ignored by the Dock tile, which is why the
+            // custom icon looked like it needed reapplying after relaunch.
+            display.asyncExec(ui.NativelessIdentity::applyLauncherIcon);
+            display.timerExec(400, () -> ui.NativelessIdentity.applyLauncherIcon());
             if (sceneShotAt >= 0) {
                 String path = sceneShotAt + 1 < argList.size()
                         ? argList.get(sceneShotAt + 1) : "/tmp/bigm-scene.png";
@@ -568,8 +574,8 @@ public final class BigMApp {
             java.nio.file.Files.createDirectories(extractDir);
             core.InstallEngine.runStatic(java.util.List.of("/usr/bin/ditto", "-x", "-k",
                     zip.toString(), extractDir.toString()), null, 300);
-            java.nio.file.Path payload = core.InstallEngine.locatePayloadPublic(extractDir, "run-bigm.sh");
-            if (payload == null) { System.out.println("self-update-e2e: FAIL: payload lacks run-bigm.sh"); return 1; }
+            java.nio.file.Path payload = core.InstallEngine.locatePayloadPublic(extractDir, "run.sh");
+            if (payload == null) { System.out.println("self-update-e2e: FAIL: payload lacks run.sh"); return 1; }
             // Point the sway swap at the fake root by re-rooting Paths: the
             // helper script takes explicit args, so call the writer directly.
             String helper = System.getProperty("java.io.tmpdir") + "/bigm-e2e-swap-" + System.currentTimeMillis() + ".sh";
