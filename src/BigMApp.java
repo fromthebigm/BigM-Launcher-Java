@@ -59,6 +59,12 @@ public final class BigMApp {
         // real network, real payloads, scratch roots only — they never touch
         // the dev tree. Run via run.sh to inherit HOME discipline.
         java.util.List<String> argList = java.util.Arrays.asList(args);
+        if (argList.contains("--token-check")) {
+            System.out.println("token-check resolved=" + (core.GitHubAccess.resolve() != null)
+                    + " source=" + core.GitHubAccess.resolveSource());
+            System.exit(core.GitHubAccess.resolve() == null ? 1 : 0);
+            return;
+        }
         if (argList.contains("--check-e2e")) { System.exit(checkE2E()); return; }
         if (argList.contains("--install-e2e")) {
             String appId = "rigel";
@@ -711,7 +717,8 @@ public final class BigMApp {
             System.out.println("self-test: gate activated="
                     + ProductGate.isActivated());
             System.out.flush();
-            System.out.println("self-test: token present=" + TokenStore.present());
+            System.out.println("self-test: token resolved=" + (core.GitHubAccess.resolve() != null)
+                    + " source=" + core.GitHubAccess.resolveSource());
             java.nio.file.Path log = Paths.transportLog();
             System.out.println("self-test: transport log target=" + log);
             System.out.flush();

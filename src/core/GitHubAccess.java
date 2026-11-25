@@ -25,6 +25,8 @@ import java.util.Base64;
 public final class GitHubAccess {
 
     private static volatile String cached;
+    /** In-memory only: a refreshed rotation token is never trusted from disk. */
+    private static volatile String remoteOverride;
 
     public static synchronized String resolve() {
         if (cached != null) return cached.isEmpty() ? null : cached;
@@ -37,20 +39,27 @@ public final class GitHubAccess {
     private static String resolveUncached() {
         String stored = TokenStore.get();
         if (stored != null) return stored;
-        Path remote = Paths.support().resolve("remote-token");
-        try {
-            if (Files.isRegularFile(remote)) {
-                String text = Files.readString(remote, StandardCharsets.UTF_8).trim();
-                if (!text.isEmpty()) return text;
-            }
-        } catch (IOException ignored) {
-        }
+        // Never read Support/remote-token from disk: a network-written file is
+        // not trusted. Only an in-memory refresh from a 200 api.github.com
+        // response (via an already-trusted token) may set it.
+        if (remoteOverride != null && !remoteOverride.isBlank()) return remoteOverride;
         if (!EmbeddedToken.VALUE.isBlank()) return EmbeddedToken.VALUE;
         String env = System.getenv("GH_TOKEN");
         if (env != null && !env.isBlank()) return env.trim();
         env = System.getenv("GITHUB_TOKEN");
         if (env != null && !env.isBlank()) return env.trim();
         return ghCLITokenFromDisk();
+    }
+
+    /** Which leg would resolve a token, without exposing the value. */
+    public static String resolveSource() {
+        if (TokenStore.get() != null) return "stored";
+        if (remoteOverride != null && !remoteOverride.isBlank()) return "remote-override";
+        if (!EmbeddedToken.VALUE.isBlank()) return "embedded";
+        if (System.getenv("GH_TOKEN") != null && !System.getenv("GH_TOKEN").isBlank()) return "env:GH_TOKEN";
+        if (System.getenv("GITHUB_TOKEN") != null && !System.getenv("GITHUB_TOKEN").isBlank()) return "env:GITHUB_TOKEN";
+        if (ghCLITokenFromDisk() != null) return "gh-cli";
+        return "none";
     }
 
     /** Post-check rescue: another token that can still see the repo. Mirrors
@@ -63,14 +72,7 @@ public final class GitHubAccess {
         String env = System.getenv("GH_TOKEN");
         if (env == null) env = System.getenv("GITHUB_TOKEN");
         if (env != null && !env.isBlank()) chain.add(env.trim());
-        Path remote = Paths.support().resolve("remote-token");
-        try {
-            if (Files.isRegularFile(remote)) {
-                String text = Files.readString(remote, StandardCharsets.UTF_8).trim();
-                if (!text.isEmpty()) chain.add(text);
-            }
-        } catch (IOException ignored) {
-        }
+        if (remoteOverride != null && !remoteOverride.isBlank()) chain.add(remoteOverride);
         if (!EmbeddedToken.VALUE.isBlank()) chain.add(EmbeddedToken.VALUE);
         String cli = ghCLITokenFromDisk();
         if (cli != null) chain.add(cli);
@@ -97,6 +99,11 @@ public final class GitHubAccess {
             }
         } catch (IOException ignored) {
         }
+        // Prefer the gh CLI itself with the REAL home, even when hosts.yml has
+        // no user line — run.sh redirects HOME to portable-data, so a hosts.yml
+        // probe against the redirected HOME would miss the real login.
+        String cli = ghCliToken();
+        if (cli != null) return cli;
         if (username == null) return null;
         // No dylib: last leg reads the generic password with /usr/bin/security
         // (a system tool, not a shipped native library). An untrusted ACL may
@@ -140,8 +147,9 @@ public final class GitHubAccess {
     }
 
     /** The owner's rotation token lives in the launcher repo itself, readable
-     *  by the embedded token; refreshing pulls any rotation through. Never
-     *  writes on non-200 answers; an EMPTY 200 body clears the override. */
+     *  by the embedded token; refreshing pulls any rotation through into
+     *  MEMORY ONLY. Never writes the token to disk and never trusts a disk
+     *  file; non-200 answers leave the override alone; EMPTY 200 clears it. */
     public static void refreshRemoteOverride(String currentToken) {
         if (currentToken == null || currentToken.isEmpty()) return;
         try {
@@ -167,21 +175,24 @@ public final class GitHubAccess {
             var response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() != 200) return;
             String text = new String(response.body(), StandardCharsets.UTF_8).trim();
-            Path remote = Paths.support().resolve("remote-token");
-            if (text.isEmpty()) {
-                Files.deleteIfExists(remote);
-            } else {
-                Files.writeString(remote, text, StandardCharsets.UTF_8);
-                try {
-                    Files.setPosixFilePermissions(remote,
-                            java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
-                } catch (UnsupportedOperationException ignored) {
-                }
-            }
+            remoteOverride = text.isEmpty() ? null : text;
             invalidate();
         } catch (Exception ignored) {
             // A failed refresh is not a signal to clear anything.
         }
+    }
+
+    private static String ghCliToken() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("gh", "auth", "token");
+            pb.environment().put("HOME", Paths.realHome().toString());
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String token = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (p.waitFor() == 0 && !token.isEmpty() && !token.contains(" ")) return token;
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private GitHubAccess() {}
