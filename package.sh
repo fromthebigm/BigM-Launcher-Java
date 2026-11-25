@@ -34,6 +34,18 @@ runtime() (
     else
         cp -R "$ROOT/jdk" "$PAYLOAD/jdk"
     fi
+    # Storage prune: the runtime reads lib/modules, not jmods/src/demo/docs or
+    # CDS archives; those are rebuildable or dev-only. Keep bin/java and
+    # lib/jspawnhelper (ProcessBuilder) and legal/ for notices.
+    rm -rf "$PAYLOAD/jdk/Contents/Home/jmods" \
+           "$PAYLOAD/jdk/Contents/Home/demo" \
+           "$PAYLOAD/jdk/Contents/Home/sample" \
+           "$PAYLOAD/jdk/Contents/Home/man" \
+           "$PAYLOAD/jdk/Contents/Home/include" 2>/dev/null || true
+    rm -f "$PAYLOAD/jdk/Contents/Home/src.zip" \
+          "$PAYLOAD/jdk/Contents/Home/lib/ct.sym" \
+          "$PAYLOAD/jdk/Contents/Home/lib/server/classes"*.jsa 2>/dev/null || true
+    rm -f "$PAYLOAD/Resources/Weather.icns" 2>/dev/null || true
     printf '%s\n%s\n' "$TAG" "$TODAY" > "$PAYLOAD/version.txt"
 )
 
